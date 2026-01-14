@@ -1,0 +1,514 @@
+import time
+import csv
+import urllib.parse
+import subprocess
+import sys
+import os.path
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from datetime import datetime
+import os
+
+# === CONFIGURATION ===
+MOTS_CLES_CSV = "mots_cles.csv"
+RESULTATS_DIR = "resultats"
+FICHIER_RESULTAT = f"{RESULTATS_DIR}/resultats_complets.csv"
+FICHIER_PROGRESSION = f"{RESULTATS_DIR}/progression.txt"  # Fichier pour suivre la progression
+ENRICHISSEUR_SCRIPT = "enrichisseur.py"
+
+# Mode headless (true = invisible, false = visible)
+MODE_HEADLESS = True  # Le mode headless est activé pour éviter les perturbations
+
+# Nombre maximum de fiches à traiter par mot-clé (pour accélérer le traitement)
+MAX_FICHES_PAR_MOT_CLE = 20  # Limiter à 20 fiches par mot-clé pour aller plus vite
+
+# Délais d'attente (en secondes) - réduire pour accélérer le traitement
+DELAI_CHARGEMENT_PAGE = 2  # Réduit de 5 à 2 secondes
+DELAI_SCROLL = 1  # Réduit de 2.5 à 1 seconde
+DELAI_TRAITEMENT_FICHE = 1  # Réduit de 3 à 1 seconde
+
+# Paramètres pour éviter le blocage
+MOTS_CLES_AVANT_PAUSE = 100  # Augmenté de 50 à 100 pour accélérer le traitement
+DUREE_PAUSE = 30  # Réduit de 60 à 30 secondes pour accélérer le traitement
+MAX_TENTATIVES_CONNEXION = 3  # Nombre de tentatives en cas d'erreur de connexion
+DELAI_ENTRE_TENTATIVES = 60  # Délai entre les tentatives en cas d'erreur (secondes)
+
+# Créer le dossier de résultats s'il n'existe pas
+if not os.path.exists(RESULTATS_DIR):
+    os.makedirs(RESULTATS_DIR)
+
+# === Selenium Setup ===
+options = Options()
+
+# Option headless pour éviter complètement le problème de focus
+if MODE_HEADLESS:
+    options.add_argument("--headless=new")  # Nouveau mode headless de Chrome
+    print("✅ Mode headless activé : Chrome s'exécutera en arrière-plan sans interface visible")
+else:
+    # Options pour minimiser les perturbations si le mode headless est désactivé
+    print("⚠️ Mode headless désactivé : Chrome sera visible mais configuré pour minimiser les perturbations")
+    
+    # Réduire au maximum la visibilité et les perturbations
+    options.add_argument("--window-position=-10000,0")  # Positionne la fenêtre complètement hors écran
+    options.add_argument("--window-size=1,1")  # Fenêtre minimale
+    options.add_argument("--disable-popup-blocking")
+    options.add_argument("--disable-notifications")
+    options.add_argument("--noerrdialogs")
+
+# Options communes (utiles dans les deux modes)
+options.add_argument("--disable-gpu")  # Désactive l'accélération GPU
+options.add_argument("--disable-infobars")  # Désactive les infobars
+options.add_argument("--disable-extensions")  # Désactive les extensions
+options.add_argument("--disable-dev-shm-usage")  # Évite les problèmes de mémoire partagée
+options.add_argument("--no-sandbox")  # Désactive le sandbox
+options.add_argument("--disable-blink-features=AutomationControlled")  # Masque l'automatisation
+options.add_argument("--disable-features=TranslateUI")  # Désactive les suggestions de traduction
+options.add_argument("--disable-hang-monitor")  # Désactive le moniteur de blocage
+options.add_argument("--disable-prompt-on-repost")  # Désactive les prompts de repost
+options.add_argument("--disable-sync")  # Désactive la synchronisation
+options.add_argument("--disable-background-networking")  # Désactive le réseau en arrière-plan
+options.add_argument("--disable-default-apps")  # Désactive les applications par défaut
+options.add_argument("--disable-client-side-phishing-detection")  # Désactive la détection de phishing
+options.add_argument("--disable-component-update")  # Désactive les mises à jour des composants
+options.add_argument("--disable-domain-reliability")  # Désactive la fiabilité du domaine
+options.add_argument("--disable-breakpad")  # Désactive le rapport de plantage
+options.add_argument("--disable-ipc-flooding-protection")  # Désactive la protection contre les inondations IPC
+options.add_argument("--enable-features=NetworkServiceInProcess2")  # Service réseau en processus
+options.add_argument("--disable-backgrounding-occluded-windows")  # Empêche la mise en arrière-plan des fenêtres occultées
+options.add_argument("--disable-renderer-backgrounding")  # Empêche la mise en arrière-plan du renderer
+options.add_argument("--disable-background-timer-throttling")  # Désactive la limitation des timers en arrière-plan
+options.add_argument("--blink-settings=imagesEnabled=false")  # Désactive le chargement des images pour accélérer
+
+# Liste de user agents réalistes pour éviter la détection
+user_agents = [
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Safari/605.1.15",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36 Edg/116.0.1938.69",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/117.0"
+]
+
+# Utiliser un user agent aléatoire
+import random
+options.add_argument(f"--user-agent={random.choice(user_agents)}")
+
+# Fonction pour initialiser le driver avec de nouvelles options
+def initialiser_driver():
+    try:
+        # Utiliser le ChromeDriver téléchargé dans le dossier du projet
+        chromedriver_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "chromedriver/chromedriver")
+        service = Service(executable_path=chromedriver_path)
+        
+        # Utiliser un user agent aléatoire à chaque initialisation
+        options_copy = Options()
+        for arg in options.arguments:
+            options_copy.add_argument(arg)
+        
+        # Remplacer le user agent par un nouveau aléatoire
+        for i, arg in enumerate(options_copy.arguments):
+            if arg.startswith("--user-agent="):
+                options_copy.arguments[i] = f"--user-agent={random.choice(user_agents)}"
+                break
+        
+        return webdriver.Chrome(service=service, options=options_copy)
+    except Exception as e:
+        print(f"⚠️ Erreur lors de l'initialisation du driver: {e}")
+        time.sleep(5)  # Attendre un peu avant de réessayer
+        return None
+
+# Initialiser le driver
+driver = initialiser_driver()
+
+# Fonction pour gérer les consentements de cookies (uniquement sur la page principale)
+def handle_cookie_consent():
+    try:
+        # Attendre que la page soit chargée et que le bouton de consentement soit visible
+        wait = WebDriverWait(driver, 5)  # Réduit de 10 à 5 secondes
+        
+        # Différents sélecteurs possibles pour le bouton "Tout accepter"
+        consent_button_selectors = [
+            "//button[contains(., 'Tout accepter')]",
+            "//button[contains(., 'J\'accepte')]",
+            "//button[contains(., 'Accepter')]",
+            "//button[contains(@id, 'consent')]",
+            "//div[contains(@id, 'consent')]//button",
+            "//div[contains(@class, 'consent')]//button",
+            "//button[contains(@class, 'consent')]",
+            "//button[contains(@aria-label, 'consent')]",
+            "//button[contains(@title, 'consent')]"
+        ]
+        
+        for selector in consent_button_selectors:
+            try:
+                consent_button = wait.until(EC.element_to_be_clickable((By.XPATH, selector)))
+                print("✅ Bouton de consentement trouvé, clic en cours...")
+                consent_button.click()
+                time.sleep(1)  # Réduit de 2 à 1 seconde
+                print("✅ Consentement accepté")
+                return True
+            except:
+                continue
+        
+        print("⚠️ Aucun bouton de consentement trouvé, continuation...")
+        return False
+    except Exception as e:
+        print(f"⚠️ Erreur lors de la gestion du consentement: {e}")
+        return False
+
+# Fonction pour sauvegarder la progression
+def sauvegarder_progression(index_mot_cle):
+    try:
+        with open(FICHIER_PROGRESSION, 'w') as f:
+            f.write(str(index_mot_cle))
+        print(f"✅ Progression sauvegardée: mot-clé {index_mot_cle}")
+    except Exception as e:
+        print(f"⚠️ Erreur lors de la sauvegarde de la progression: {e}")
+        # Tentative de sauvegarde dans un fichier de secours
+        try:
+            with open(f"{FICHIER_PROGRESSION}.backup", 'w') as f:
+                f.write(str(index_mot_cle))
+            print(f"✅ Progression sauvegardée dans le fichier de secours")
+        except:
+            pass
+
+# Fonction pour charger la progression
+def charger_progression():
+    try:
+        if os.path.exists(FICHIER_PROGRESSION):
+            with open(FICHIER_PROGRESSION, 'r') as f:
+                index = int(f.read().strip())
+            print(f"✅ Progression chargée: reprise au mot-clé {index+1}")
+            return index
+        elif os.path.exists(f"{FICHIER_PROGRESSION}.backup"):
+            # Utiliser le fichier de secours si le fichier principal est corrompu
+            with open(f"{FICHIER_PROGRESSION}.backup", 'r') as f:
+                index = int(f.read().strip())
+            print(f"✅ Progression chargée depuis le fichier de secours: reprise au mot-clé {index+1}")
+            return index
+        else:
+            print("✅ Aucune progression sauvegardée, démarrage depuis le début")
+            return 0
+    except Exception as e:
+        print(f"⚠️ Erreur lors du chargement de la progression: {e}")
+        return 0
+
+# === Lire les mots-clés depuis le fichier CSV ===
+mots_cles = []
+try:
+    with open(MOTS_CLES_CSV, 'r', encoding='utf-8') as csvfile:
+        # Le fichier a une colonne 'mot_cle' avec un en-tête
+        reader = csv.reader(csvfile)
+        # Lire l'en-tête
+        header = next(reader, None)
+        for row in reader:
+            if row and len(row) > 0 and row[0].strip():  # Vérifier que la ligne n'est pas vide et contient un mot-clé
+                mots_cles.append(row[0].strip())
+except Exception as e:
+    print(f"⚠️ Erreur lors de la lecture du fichier CSV: {e}")
+    exit(1)
+
+if not mots_cles:
+    print(f"⚠️ Aucun mot-clé trouvé dans {MOTS_CLES_CSV}")
+    exit(1)
+
+print(f"✅ {len(mots_cles)} mots-clés chargés depuis {MOTS_CLES_CSV}")
+print(f"✅ Limitation à {MAX_FICHES_PAR_MOT_CLE} fiches par mot-clé pour accélérer le traitement")
+
+# Charger la progression précédente
+index_debut = charger_progression()
+
+# Vérifier si le fichier de résultats existe déjà
+fichier_existe = os.path.exists(FICHIER_RESULTAT)
+
+# Préparer le fichier CSV unique pour tous les résultats
+with open(FICHIER_RESULTAT, 'a' if fichier_existe else 'w', newline='', encoding='utf-8') as csvfile:
+    csv_writer = csv.writer(csvfile)
+    
+    # Écrire l'en-tête seulement si le fichier n'existe pas déjà
+    if not fichier_existe:
+        csv_writer.writerow(["Mot-clé", "Nom", "Téléphone", "Site web", "Adresse"])
+    
+    # === Traiter chaque mot-clé ===
+    for index, mot_cle in enumerate(mots_cles[index_debut:], start=index_debut):
+        print(f"\n🔍 Traitement du mot-clé {index+1}/{len(mots_cles)}: {mot_cle}")
+        
+        # Sauvegarder la progression régulièrement
+        if index % 5 == 0:
+            sauvegarder_progression(index)
+        
+        # Faire une pause tous les MOTS_CLES_AVANT_PAUSE mots-clés pour éviter le blocage
+        if index > 0 and index % MOTS_CLES_AVANT_PAUSE == 0:
+            print(f"⏸️ Pause de {DUREE_PAUSE} secondes pour éviter le blocage...")
+            time.sleep(DUREE_PAUSE)
+            
+            # Réinitialiser le driver périodiquement pour éviter les fuites de mémoire
+            print("🔄 Réinitialisation périodique du driver...")
+            driver.quit()
+            driver = initialiser_driver()
+            if driver is None:
+                print("⚠️ Échec de la réinitialisation périodique du driver, tentative de récupération...")
+                time.sleep(10)
+                driver = initialiser_driver()
+                if driver is None:
+                    raise Exception("Impossible de réinitialiser le driver après plusieurs tentatives")
+        
+        try:
+            # Créer l'URL Google Maps avec le mot-clé
+            encoded_keyword = urllib.parse.quote(mot_cle)
+            google_maps_url = f"https://www.google.fr/maps/search/{encoded_keyword}"
+            
+            # Tentatives multiples en cas d'erreur de connexion
+            tentative = 0
+            success = False
+            
+            while tentative < MAX_TENTATIVES_CONNEXION and not success:
+                try:
+                    # Ouvrir Google Maps avec le mot-clé
+                    driver.get(google_maps_url)
+                    time.sleep(DELAI_CHARGEMENT_PAGE)  # Attendre que la page se charge
+                    success = True
+                except Exception as e:
+                    tentative += 1
+                    print(f"⚠️ Erreur de connexion (tentative {tentative}/{MAX_TENTATIVES_CONNEXION}): {e}")
+                    
+                    if tentative >= MAX_TENTATIVES_CONNEXION:
+                        raise Exception(f"Échec après {MAX_TENTATIVES_CONNEXION} tentatives")
+                    
+                    print(f"⏳ Attente de {DELAI_ENTRE_TENTATIVES} secondes avant nouvelle tentative...")
+                    time.sleep(DELAI_ENTRE_TENTATIVES)
+                    
+                    # Réinitialiser le driver en cas d'erreur persistante
+                    if tentative >= 2:
+                        print("🔄 Réinitialisation du driver...")
+                        driver.quit()
+                        driver = initialiser_driver()
+                        if driver is None:
+                            raise Exception("Impossible de réinitialiser le driver")
+            
+            # Gérer le consentement des cookies si nécessaire (uniquement sur la page principale)
+            handle_cookie_consent()
+            
+            # Collecter les URLs des fiches
+            urls = set()
+            max_attempts = 3
+            attempt = 0
+            
+            while attempt < max_attempts:
+                try:
+                    # Essayer différents sélecteurs pour trouver les résultats
+                    selectors = [
+                        '//div[@role="feed"]',
+                        '//div[contains(@class, "section-result")]',
+                        '//a[contains(@href, "/maps/place/")]',
+                        '//div[contains(@class, "Nv2PK")]',
+                        '//div[contains(@class, "lI9IFe")]',
+                        '//div[contains(@class, "bfdHYd")]'
+                    ]
+                    
+                    scrollable_div = None
+                    for selector in selectors:
+                        try:
+                            elements = driver.find_elements(By.XPATH, selector)
+                            if elements:
+                                scrollable_div = elements[0]
+                                break
+                        except:
+                            continue
+                    
+                    if not scrollable_div:
+                        # Si aucun des sélecteurs ne fonctionne, utiliser le body pour scroller
+                        scrollable_div = driver.find_element(By.TAG_NAME, 'body')
+                    
+                    # Scroll pour charger plus de résultats
+                    previous_count = 0
+                    same_count_tries = 0
+                    max_scrolls = 10  # Réduit de 20 à 10 scrolls maximum par mot-clé
+                    
+                    for i in range(max_scrolls):
+                        # Scroller dans la page
+                        driver.execute_script("window.scrollBy(0, 500);")  # Scroll plus doux
+                        driver.execute_script("arguments[0].scrollTop = arguments[0].scrollHeight", scrollable_div)
+                        time.sleep(DELAI_SCROLL)
+                        
+                        # Collecter les liens vers les fiches
+                        links = driver.find_elements(By.XPATH, '//a[contains(@href, "/maps/place/")]')
+                        for link in links:
+                            href = link.get_attribute("href")
+                            if href and "/maps/place/" in href:
+                                urls.add(href)
+                                # Si on a atteint le nombre maximum de fiches, on arrête
+                                if len(urls) >= MAX_FICHES_PAR_MOT_CLE:
+                                    break
+                        
+                        current_count = len(urls)
+                        print(f"  🌀 Scroll {i+1} → {current_count} fiches collectées")
+                        
+                        # Si on a atteint le nombre maximum de fiches, on arrête
+                        if current_count >= MAX_FICHES_PAR_MOT_CLE:
+                            print(f"  ✅ Nombre maximum de fiches atteint ({MAX_FICHES_PAR_MOT_CLE}).")
+                            break
+                        
+                        if current_count == previous_count:
+                            same_count_tries += 1
+                        else:
+                            same_count_tries = 0
+                            previous_count = current_count
+                        
+                        if same_count_tries >= 3:  # Réduit de 5 à 3 tentatives sans nouvelles fiches
+                            print("  ✅ Fin du scroll : plus de nouvelles fiches après 3 tentatives.")
+                            break
+                    
+                    # Si on a trouvé des URLs, on peut sortir de la boucle de tentatives
+                    if urls:
+                        break
+                    
+                    attempt += 1
+                    print(f"  ⚠️ Tentative {attempt}/{max_attempts} échouée. Réessai...")
+                    time.sleep(1)  # Réduit de 2 à 1 seconde
+                    
+                except Exception as e:
+                    print(f"  ⚠️ Erreur lors du scroll: {e}")
+                    attempt += 1
+                    time.sleep(1)  # Réduit de 2 à 1 seconde
+            
+            # === Traitement des fiches ===
+            urls = list(urls)[:MAX_FICHES_PAR_MOT_CLE]  # Limiter au nombre maximum de fiches
+            print(f"  ✅ {len(urls)} fiches prêtes à être scrapées pour le mot-clé: {mot_cle}")
+            
+            if not urls:
+                print(f"  ⚠️ Aucune fiche trouvée pour le mot-clé: {mot_cle}")
+                # Écrire une ligne vide pour ce mot-clé pour indiquer qu'il a été traité
+                csv_writer.writerow([mot_cle, "", "", "", ""])
+                continue
+            
+            # En mode headless, pas besoin de créer un nouvel onglet, on peut directement naviguer
+            if not MODE_HEADLESS:
+                # Créer un nouvel onglet pour traiter les fiches
+                driver.execute_script("window.open('about:blank', '_blank');")
+            
+            for i, url in enumerate(urls):
+                try:
+                    if MODE_HEADLESS:
+                        # En mode headless, on peut simplement naviguer vers l'URL
+                        driver.get(url)
+                    else:
+                        # En mode visible, utiliser le second onglet pour les fiches
+                        driver.switch_to.window(driver.window_handles[1])
+                        driver.get(url)
+                    
+                    time.sleep(DELAI_TRAITEMENT_FICHE)
+                    
+                    # Extraire les informations de la fiche
+                    nom, tel, site, adresse = "", "", "", ""
+                    
+                    try:
+                        nom_elements = driver.find_elements(By.XPATH, '//h1')
+                        if nom_elements:
+                            nom = nom_elements[0].text
+                    except:
+                        pass
+                    
+                    try:
+                        tel_elements = driver.find_elements(By.XPATH, '//button[contains(@aria-label, "Appeler")]')
+                        if tel_elements:
+                            tel = tel_elements[0].text
+                    except:
+                        pass
+                    
+                    try:
+                        site_elements = driver.find_elements(By.XPATH, '//a[contains(@data-item-id, "authority")]')
+                        if site_elements:
+                            site = site_elements[0].get_attribute("href")
+                    except:
+                        pass
+                    
+                    try:
+                        adresse_elements = driver.find_elements(By.XPATH, '//button[contains(@aria-label, "Copier l\'adresse")]//div[1]')
+                        if adresse_elements:
+                            adresse = adresse_elements[0].text
+                    except:
+                        pass
+                    
+                    print(f"  ✅ {i+1}/{len(urls)} | {nom} | {tel} | {site}")
+                    csv_writer.writerow([mot_cle, nom, tel, site, adresse])
+                    csvfile.flush()  # Forcer l'écriture dans le fichier après chaque ligne
+                    
+                    if not MODE_HEADLESS:
+                        # Revenir à l'onglet principal en mode visible
+                        driver.switch_to.window(driver.window_handles[0])
+                    
+                except Exception as e:
+                    print(f"  ⚠️ Erreur lors du traitement de la fiche {i+1}: {e}")
+                    # Écrire une ligne avec le mot-clé mais des valeurs vides pour les autres colonnes
+                    csv_writer.writerow([mot_cle, "", "", "", ""])
+                    csvfile.flush()  # Forcer l'écriture dans le fichier après chaque ligne
+                    if not MODE_HEADLESS:
+                        try:
+                            # S'assurer qu'on revient à l'onglet principal en cas d'erreur
+                            driver.switch_to.window(driver.window_handles[0])
+                        except:
+                            pass
+        
+        except Exception as e:
+            print(f"⚠️ Erreur lors du traitement du mot-clé {mot_cle}: {e}")
+            # Écrire une ligne avec le mot-clé mais des valeurs vides pour les autres colonnes
+            csv_writer.writerow([mot_cle, "", "", "", ""])
+            csvfile.flush()  # Forcer l'écriture dans le fichier après chaque ligne
+            
+            # Vérifier si le driver est toujours fonctionnel
+            try:
+                driver.current_url  # Simple test pour voir si le driver répond
+            except:
+                print("⚠️ Le driver semble être en erreur, tentative de réinitialisation...")
+                try:
+                    driver.quit()
+                except:
+                    pass
+                driver = initialiser_driver()
+                if driver is None:
+                    print("⚠️ Échec de la réinitialisation du driver, nouvelle tentative dans 30 secondes...")
+                    time.sleep(30)
+                    driver = initialiser_driver()
+                    if driver is None:
+                        print("❌ Impossible de réinitialiser le driver après plusieurs tentatives")
+                        raise Exception("Échec critique: impossible de réinitialiser le driver")
+        
+        # Sauvegarder la progression après chaque mot-clé
+        sauvegarder_progression(index + 1)
+
+print("\n✅ Scraping terminé !")
+driver.quit()
+
+# Conserver le fichier de progression pour référence
+if os.path.exists(FICHIER_PROGRESSION):
+    # Renommer le fichier avec un timestamp au lieu de le supprimer
+    import time
+    timestamp = int(time.time())
+    os.rename(FICHIER_PROGRESSION, f"{FICHIER_PROGRESSION}.{timestamp}.completed")
+    print(f"✅ Fichier de progression sauvegardé comme {FICHIER_PROGRESSION}.{timestamp}.completed")
+
+# Supprimer le fichier de secours s'il existe
+if os.path.exists(f"{FICHIER_PROGRESSION}.backup"):
+    os.remove(f"{FICHIER_PROGRESSION}.backup")
+
+# === Lancer l'enrichissement automatiquement ===
+print("\n🔄 Lancement automatique de l'enrichissement des données...")
+
+try:
+    # Vérifier que le script d'enrichissement existe
+    if not os.path.exists(ENRICHISSEUR_SCRIPT):
+        print(f"⚠️ Script d'enrichissement {ENRICHISSEUR_SCRIPT} non trouvé.")
+        exit(1)
+    
+    # Lancer le script d'enrichissement avec le même interpréteur Python
+    print(f"🚀 Exécution de {ENRICHISSEUR_SCRIPT}...")
+    subprocess.run([sys.executable, ENRICHISSEUR_SCRIPT])
+    
+    print("\n✅ Processus complet terminé ! Les données ont été scrapées et enrichies.")
+except Exception as e:
+    print(f"⚠️ Erreur lors du lancement de l'enrichissement: {e}")
+    print("Vous pouvez lancer manuellement l'enrichissement avec la commande: python enrichisseur.py")
