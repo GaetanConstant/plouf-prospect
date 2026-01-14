@@ -1,4 +1,5 @@
 import streamlit as st
+import os
 import pandas as pd
 from datetime import datetime
 import random
@@ -96,7 +97,7 @@ MAIL_TEMPLATES = [
 
 
 # === Authentification ===
-config_file = 'config.yaml'
+config_file = 'config.yaml' if os.path.exists('config.yaml') else 'config_dev.yaml'
 with open(config_file) as file:
     config = yaml.load(file, Loader=SafeLoader)
 
