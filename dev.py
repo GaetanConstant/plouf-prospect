@@ -9,7 +9,7 @@ from urllib.parse import quote
 
 # --- CONFIGURATION ---
 st.set_page_config(
-    page_title="Plouf CRM NextGen",
+    page_title="Plouf CRM",
     page_icon="🌊",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -36,12 +36,12 @@ st.markdown("""
     
     .prop-card:hover {
         transform: translateY(-2px);
-        border-color: #4f8bf9;
+        border-color: #ff4b4b;
     }
 
     /* Gradient Headers */
     h1, h2, h3 {
-        background: linear-gradient(90deg, #4f8bf9 0%, #a259ff 100%);
+        background: linear-gradient(90deg, #ff4b4b 0%, #9b1b30 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         font-weight: 700;
@@ -50,7 +50,7 @@ st.markdown("""
     /* Metrics */
     div[data-testid="stMetricValue"] {
         font-size: 2rem;
-        color: #4f8bf9;
+        color: #ff4b4b;
     }
 
     /* Buttons */
@@ -165,7 +165,7 @@ def extract_date(status_str):
     return None
 
 # --- APP LAYOUT ---
-st.title("🌊 Plouf CRM • NextGen")
+st.title("🌊 Plouf CRM")
 
 # Load Data
 if 'df' not in st.session_state:
@@ -218,7 +218,7 @@ with tab_prospect:
             <div class="prop-card">
                 <h2>{row.get('First Name', '')} {row.get('Last Name', '')}</h2>
                 <p style="font-size: 1.1em; color: #aaa;">{row.get('Title', 'Poste inconnu')} @ <strong>{row.get('Company Name for Emails', 'Unknown Company')}</strong></p>
-                <div style="background-color: #262730; padding: 10px; border-radius: 8px; margin: 10px 0; border-left: 4px solid #4f8bf9;">
+                <div style="background-color: #262730; padding: 10px; border-radius: 8px; margin: 10px 0; border-left: 4px solid #ff4b4b;">
                     <p style="margin:0; font-family: monospace; font-size: 1.2em;">📧 <strong>{row.get('Email', 'Email inconnu')}</strong></p>
                 </div>
                 <hr style="border-color: #333;">
@@ -227,8 +227,8 @@ with tab_prospect:
                 <p>📍 <strong>Lieu:</strong> {row.get('Company Address', 'N/A')}</p>
                 <p>🏷️ <strong>Groupe:</strong> {row.get('origine_contact', 'N/A')}</p>
                 <div style="margin-top: 20px;">
-                    <a href="{row.get('Person Linkedin Url', '#')}" target="_blank" style="text-decoration: none; color: #4f8bf9; margin-right: 15px;">🔗 Profil LinkedIn</a>
-                    <a href="{row.get('Website', '#')}" target="_blank" style="text-decoration: none; color: #4f8bf9;">🌐 Site Web</a>
+                    <a href="{row.get('Person Linkedin Url', '#')}" target="_blank" style="text-decoration: none; color: #ff4b4b; margin-right: 15px;">🔗 Profil LinkedIn</a>
+                    <a href="{row.get('Website', '#')}" target="_blank" style="text-decoration: none; color: #ff4b4b;">🌐 Site Web</a>
                 </div>
             </div>
             """, unsafe_allow_html=True)
@@ -323,7 +323,7 @@ with tab_stats:
                 contacted_df, 
                 names='Status_Cat', 
                 title='Répartition des Status',
-                color_discrete_sequence=px.colors.sequential.RdBu,
+                color_discrete_sequence=px.colors.sequential.Reds_r,
                 hole=0.4
             )
             fig_pie.update_layout(paper_bgcolor="rgba(0,0,0,0)", font_color="white")
@@ -341,7 +341,7 @@ with tab_stats:
                 orientation='h', 
                 title='Top Industries Contactées',
                 color='Count',
-                color_continuous_scale='Viridis'
+                color_continuous_scale='Reds'
             )
             fig_bar.update_layout(paper_bgcolor="rgba(0,0,0,0)", font_color="white", yaxis=dict(autorange="reversed"))
             st.plotly_chart(fig_bar, use_container_width=True)

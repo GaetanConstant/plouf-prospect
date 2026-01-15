@@ -7,11 +7,8 @@ WORKDIR /plouf-prospect
 COPY requirements.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copier les fichiers nécessaires de l'application
-COPY dev.py app.py
-COPY config.yaml config.yaml
-COPY crm_scopa.csv crm_scopa.csv
-COPY .streamlit/config.toml .streamlit/config.toml
+# Copier tous les fichiers nécessaires
+COPY . .
 
 # Exposer le port utilisé par Streamlit
 EXPOSE 4202
@@ -20,5 +17,5 @@ EXPOSE 4202
 HEALTHCHECK --interval=30s --timeout=10s \
   CMD curl --fail http://localhost:4202/_stcore/health || exit 1
 
-# Lancer l'application
-CMD ["streamlit", "run", "app.py", "--server.port=4202", "--server.address=0.0.0.0"]
+# Lancer l'application dev.py
+CMD ["streamlit", "run", "dev.py", "--server.port=4202", "--server.address=0.0.0.0"]
