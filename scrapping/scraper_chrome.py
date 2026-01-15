@@ -6,8 +6,8 @@ import sys
 import os.path
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.firefox.options import Options as FirefoxOptions
-from selenium.webdriver.firefox.service import Service as FirefoxService
+from selenium.webdriver.chrome.options import Options as ChromeOptions
+from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from datetime import datetime
@@ -42,20 +42,19 @@ DELAI_ENTRE_TENTATIVES = 60  # Délai entre les tentatives en cas d'erreur (seco
 if not os.path.exists(RESULTATS_DIR):
     os.makedirs(RESULTATS_DIR)
 
-# === Selenium Setup (Firefox) ===
-options = FirefoxOptions()
+# === Selenium Setup (Chrome) ===
+options = ChromeOptions()
 
 if MODE_HEADLESS:
-    options.add_argument("--headless")
-    print("✅ Mode headless activé : Firefox s'exécutera en arrière-plan")
+    options.add_argument("--headless=new")
+    print("✅ Mode headless activé : Chrome s'exécutera en arrière-plan")
 else:
-    print("⚠️ Mode headless désactivé : Firefox sera visible")
+    print("⚠️ Mode headless désactivé : Chrome sera visible")
 
-# Options Firefox
-options.set_preference("dom.webdriver.enabled", False)
-options.set_preference("useAutomationExtension", False)
-options.set_preference("permissions.default.image", 2)  # Désactive les images pour accélérer
-options.set_preference("dom.ipc.plugins.enabled.libflashplayer.so", "false")
+options.add_argument("--disable-gpu")
+options.add_argument("--no-sandbox")
+options.add_argument("--disable-dev-shm-usage")
+options.add_argument("--disable-blink-features=AutomationControlled")
 
 # Options communes (utiles dans les deux modes)
 options.add_argument("--disable-gpu")  # Désactive l'accélération GPU
@@ -97,11 +96,11 @@ options.add_argument(f"--user-agent={random.choice(user_agents)}")
 # Fonction pour initialiser le driver avec de nouvelles options
 def initialiser_driver():
     try:
-        from webdriver_manager.firefox import GeckoDriverManager
-        service = FirefoxService(GeckoDriverManager().install())
-        return webdriver.Firefox(service=service, options=options)
+        from webdriver_manager.chrome import ChromeDriverManager
+        service = ChromeService(ChromeDriverManager().install())
+        return webdriver.Chrome(service=service, options=options)
     except Exception as e:
-        print(f"❌ Erreur critique d'initialisation du driver Firefox: {e}")
+        print(f"❌ Erreur critique d'initialisation du driver Chrome: {e}")
         return None
 
 # Initialiser le driver
