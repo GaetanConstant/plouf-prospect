@@ -1,15 +1,16 @@
 FROM python:3.9-slim
 
 # Définir le répertoire de travail
-WORKDIR /crm
+WORKDIR /plouf-prospect
 
 # Installer les dépendances à partir du fichier requirements.txt
 COPY requirements.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copier les fichiers nécessaires de l'application
-COPY app.py app.py
+COPY dev.py app.py
 COPY config.yaml config.yaml
+COPY crm_scopa.csv crm_scopa.csv
 COPY .streamlit/config.toml .streamlit/config.toml
 
 # Exposer le port utilisé par Streamlit
