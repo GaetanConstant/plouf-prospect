@@ -137,11 +137,17 @@ FILE_PATH = 'crm_scopa.csv'
 def load_data():
     if os.path.exists(FILE_PATH):
         df = pd.read_csv(FILE_PATH)
-        # Ensure 'Contacté' column is treated as object/string
+        # S'assurer que la colonne 'Contacté' existe
         if 'Contacté' not in df.columns:
             df['Contacté'] = None
-        else:
-            df['Contacté'] = df['Contacté'].astype(str).replace('nan', None)
+        
+        # Nettoyage robuste : on convertit les différentes formes de "vide" en None
+        # Cela évite les disparités entre versions de pandas (1.x vs 2.x)
+        df['Contacté'] = df['Contacté'].astype(object).replace(['nan', 'None', '', 'nan'], None)
+        
+        # S'assurer que les valeurs nulles de pandas sont bien traitées
+        df.loc[df['Contacté'].isnull(), 'Contacté'] = None
+        
         return df
     else:
         st.error(f"Fichier {FILE_PATH} introuvable.")
@@ -193,7 +199,7 @@ with tab_prospect:
     st.markdown("### 👤 Nouvelle Cible")
     
     # Filter: Not contacted yet
-    prospects = df[df['Contacté'].isna() | (df['Contacté'] == "None")].copy()
+    prospects = df[df['Contacté'].isna()].copy()
     
     # Apply Origin Filter
     if selected_origin != "Tous":
