@@ -6,6 +6,9 @@ import random
 from datetime import datetime, timedelta
 import os
 from urllib.parse import quote
+import yaml
+from yaml.loader import SafeLoader
+import streamlit_authenticator as stauth
 
 # --- CONFIGURATION ---
 st.set_page_config(
@@ -15,23 +18,98 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# --- AUTHENTICATION ---
+with open('config_dev.yaml') as file:
+    config = yaml.load(file, Loader=SafeLoader)
+
+authenticator = stauth.Authenticate(
+    config['credentials'],
+    config['cookie']['name'],
+    config['cookie']['key'],
+    config['cookie']['expiry_days']
+)
+
+# Affichage du formulaire de connexion
+# Note: authentication_status peut être True, False ou None
+authenticator.login()
+
+if st.session_state["authentication_status"] is False:
+    st.error('Utilisateur/Mot de passe incorrect')
+    st.stop()
+elif st.session_state["authentication_status"] is None:
+    st.warning('Veuillez entrer vos identifiants')
+    st.stop()
+
+# Si on arrive ici, l'utilisateur est authentifié
+user_username = st.session_state['username']
+user_role = config['credentials']['usernames'][user_username].get('role', 'usr')
+st.session_state['role'] = user_role
+
+st.sidebar.title(f"Bienvenue {st.session_state['name']}")
+st.sidebar.info(f"Rôle : {user_role.capitalize()}")
+authenticator.logout('Se déconnecter', 'sidebar')
+
 # --- CUSTOM CSS (Aesthetics) ---
 st.markdown("""
 <style>
-    /* Global Clean Look */
+    /* Full Screen & Fixed Layout */
+    html, body, [data-testid="stAppViewContainer"] {
+        overflow: hidden !important;
+        height: 100vh !important;
+        width: 100vw !important;
+    }
+
     .stApp {
         font-family: 'Inter', sans-serif;
         background-color: #0e1117;
     }
+
+    /* Force Full Width */
+    [data-testid="stAppViewContainer"] > section:nth-child(2) > div:nth-child(1) {
+        max-width: none !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+    }
+
+    /* Main content padding adjustment - Fill all width */
+    .main .block-container {
+        max-width: 100% !important;
+        padding-top: 0.5rem !important;
+        padding-bottom: 0rem !important;
+        padding-left: 1.5rem !important;
+        padding-right: 1.5rem !important;
+        height: 100vh !important;
+    }
+
+    /* Hide top header to gain space */
+    header[data-testid="stHeader"] {
+        display: none !important;
+    }
+
+    /* Hide footer */
+    footer {
+        display: none !important;
+    }
     
-    /* Card Style */
+    /* Card Style - Adaptive Width */
     .prop-card {
         background-color: #1e2130;
-        border-radius: 12px;
-        padding: 24px;
+        border-radius: 10px;
+        padding: 15px;
         border: 1px solid #2e3b55;
         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         transition: transform 0.2s ease;
+        width: 100%;
+    }
+    
+    .prop-card h2 {
+        font-size: 1.6rem !important;
+        margin-bottom: 5px !important;
+    }
+
+    .prop-card p {
+        margin-bottom: 4px !important;
+        font-size: 1rem !important;
     }
     
     .prop-card:hover {
@@ -40,24 +118,46 @@ st.markdown("""
     }
 
     /* Gradient Headers */
-    h1, h2, h3 {
+    h1 {
+        font-size: 2.2rem !important;
         background: linear-gradient(90deg, #ff4b4b 0%, #9b1b30 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         font-weight: 700;
+        margin-bottom: 0.2rem !important;
+        padding-top: 0 !important;
+    }
+
+    h3 {
+        font-size: 1.4rem !important;
+        margin-bottom: 0.5rem !important;
     }
 
     /* Metrics */
     div[data-testid="stMetricValue"] {
-        font-size: 2rem;
+        font-size: 1.8rem !important;
         color: #ff4b4b;
     }
 
     /* Buttons */
     .stButton>button {
-        border-radius: 8px;
+        border-radius: 6px;
         font-weight: 600;
-        transition: all 0.3s;
+        padding: 0.4rem 1rem !important;
+    }
+
+    /* Tabs customization */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 10px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        padding: 8px 20px !important;
+        font-size: 1rem !important;
+    }
+
+    /* Spacing between streamlit elements */
+    .stVerticalBlock {
+        gap: 0.6rem !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -137,16 +237,20 @@ FILE_PATH = 'crm_scopa.csv'
 def load_data():
     if os.path.exists(FILE_PATH):
         df = pd.read_csv(FILE_PATH)
-        # S'assurer que la colonne 'Contacté' existe
-        if 'Contacté' not in df.columns:
-            df['Contacté'] = None
+        # S'assurer que les colonnes nécessaires existent
+        for col in ['Contacté', 'Phone', 'Commercial']:
+            if col not in df.columns:
+                df[col] = None
         
         # Nettoyage robuste : on convertit les différentes formes de "vide" en None
-        # Cela évite les disparités entre versions de pandas (1.x vs 2.x)
         df['Contacté'] = df['Contacté'].astype(object).replace(['nan', 'None', '', 'nan'], None)
+        df['Phone'] = df['Phone'].astype(object).replace(['nan', 'None', '', 'nan'], None)
+        df['Commercial'] = df['Commercial'].astype(object).replace(['nan', 'None', '', 'nan'], None)
         
         # S'assurer que les valeurs nulles de pandas sont bien traitées
         df.loc[df['Contacté'].isnull(), 'Contacté'] = None
+        df.loc[df['Phone'].isnull(), 'Phone'] = None
+        df.loc[df['Commercial'].isnull(), 'Commercial'] = None
         
         return df
     else:
@@ -183,7 +287,17 @@ if df.empty:
     st.stop()
 
 # Tabs
-tab_prospect, tab_stats, tab_relance, tab_history = st.tabs(["🚀 Session Prospection", "📊 Analytics", "⏰ Relances Prioritaires", "🗂️ Historique"])
+tab_list = ["🚀 Session Prospection", "⏰ Relances Prioritaires", "🗂️ Historique"]
+if st.session_state['role'] == 'admin':
+    tab_list.insert(1, "📊 Analytics")
+
+tabs = st.tabs(tab_list)
+
+if st.session_state['role'] == 'admin':
+    tab_prospect, tab_stats, tab_relance, tab_history = tabs
+else:
+    tab_prospect, tab_relance, tab_history = tabs
+    tab_stats = None
 
 # --- TAB 1: PROSPECTION ---
 with tab_prospect:
@@ -191,6 +305,10 @@ with tab_prospect:
     # 1. Filter by Origin (Group)
     if 'origine_contact' in df.columns:
         origins = sorted(df['origine_contact'].dropna().astype(str).unique().tolist())
+        # Restriction rôle usr : pas de llbb
+        if st.session_state['role'] != 'admin':
+            origins = [o for o in origins if o != 'llbb']
+            
         selected_origin = st.selectbox("🎯 Filtrer par Source (Groupe)", ["Tous"] + origins)
     else:
         selected_origin = "Tous"
@@ -200,6 +318,10 @@ with tab_prospect:
     
     # Filter: Not contacted yet
     prospects = df[df['Contacté'].isna()].copy()
+    
+    # Restriction rôle usr : pas de llbb
+    if st.session_state['role'] != 'admin':
+        prospects = prospects[prospects['origine_contact'] != 'llbb']
     
     # Apply Origin Filter
     if selected_origin != "Tous":
@@ -225,32 +347,66 @@ with tab_prospect:
                 <h2>{row.get('First Name', '')} {row.get('Last Name', '')}</h2>
                 <p style="font-size: 1.1em; color: #aaa;">{row.get('Title', 'Poste inconnu')} @ <strong>{row.get('Company Name for Emails', 'Unknown Company')}</strong></p>
                 <div style="background-color: #262730; padding: 10px; border-radius: 8px; margin: 10px 0; border-left: 4px solid #ff4b4b;">
-                    <p style="margin:0; font-family: monospace; font-size: 1.2em;">📧 <strong>{row.get('Email', 'Email inconnu')}</strong></p>
+                    <p style="margin:0; font-family: monospace; font-size: 1.2em;">📧 <strong>{row.get('Email') if pd.notna(row.get('Email')) else 'Email inconnu'}</strong></p>
+                    <p style="margin:5px 0 0 0; font-family: monospace; font-size: 1.1em;">📞 <strong>{row.get('Phone') if pd.notna(row.get('Phone')) else 'N/A'}</strong></p>
                 </div>
                 <hr style="border-color: #333;">
-                <p>🏭 <strong>Industrie:</strong> {row.get('Industry', 'N/A')}</p>
+                <p>🏭 <strong>Entreprise:</strong> {row.get('Industry', 'N/A')}</p>
                 <p>👥 <strong>Taille:</strong> {row.get('# Employees', 'N/A')}</p>
                 <p>📍 <strong>Lieu:</strong> {row.get('Company Address', 'N/A')}</p>
                 <p>🏷️ <strong>Groupe:</strong> {row.get('origine_contact', 'N/A')}</p>
                 <div style="margin-top: 20px;">
                     <a href="{row.get('Person Linkedin Url', '#')}" target="_blank" style="text-decoration: none; color: #ff4b4b; margin-right: 15px;">🔗 Profil LinkedIn</a>
-                    <a href="{row.get('Website', '#')}" target="_blank" style="text-decoration: none; color: #ff4b4b;">🌐 Site Web</a>
+                    <a href="{row.get('Website', '#')}" target="_blank" style="text-decoration: none; color: #ff4b4b; margin-right: 15px;">🌐 Site Web</a>
+                    {f'<a href="tel:{row.get("Phone")}" style="text-decoration: none; color: #ff4b4b;">📞 Appeler</a>' if pd.notna(row.get('Phone')) else ''}
                 </div>
             </div>
             """, unsafe_allow_html=True)
+            
+            with st.expander("🛠️ Modifier les informations de la fiche"):
+                new_first_name = st.text_input("Prénom", value=str(row.get('First Name', '')), key=f"fn_{idx}")
+                new_last_name = st.text_input("Nom", value=str(row.get('Last Name', '')) if pd.notna(row.get('Last Name')) else '', key=f"ln_{idx}")
+                new_email = st.text_input("Email", value=str(row.get('Email', '')) if pd.notna(row.get('Email')) else '', key=f"em_{idx}")
+                new_phone = st.text_input("Téléphone", value=str(row.get('Phone', '')) if pd.notna(row.get('Phone')) else '', key=f"ph_{idx}")
+                new_title = st.text_input("Poste", value=str(row.get('Title', '')) if pd.notna(row.get('Title')) else '', key=f"ti_{idx}")
+                new_company = st.text_input("Entreprise", value=str(row.get('Company Name for Emails', '')), key=f"co_{idx}")
+                new_industry = st.text_input("Industrie", value=str(row.get('Industry', '')), key=f"in_{idx}")
+                new_employees = st.text_input("Taille (# Employees)", value=str(row.get('# Employees', '')), key=f"sz_{idx}")
+                new_address = st.text_input("Lieu", value=str(row.get('Company Address', '')), key=f"ad_{idx}")
+                new_linkedin = st.text_input("LinkedIn URL", value=str(row.get('Person Linkedin Url', '')), key=f"li_{idx}")
+                new_website = st.text_input("Site Web", value=str(row.get('Website', '')), key=f"ws_{idx}")
+                
+                if st.button("💾 Enregistrer les modifications uniquement", use_container_width=True):
+                    df.at[idx, 'First Name'] = new_first_name
+                    df.at[idx, 'Last Name'] = new_last_name
+                    df.at[idx, 'Email'] = new_email
+                    df.at[idx, 'Phone'] = new_phone
+                    df.at[idx, 'Title'] = new_title
+                    df.at[idx, 'Company Name for Emails'] = new_company
+                    df.at[idx, 'Industry'] = new_industry
+                    df.at[idx, '# Employees'] = new_employees
+                    df.at[idx, 'Company Address'] = new_address
+                    df.at[idx, 'Person Linkedin Url'] = new_linkedin
+                    df.at[idx, 'Website'] = new_website
+                    # On ne change pas le commercial sur une simple modification
+                    save_data(df)
+                    st.session_state.df = df
+                    st.success("Informations mises à jour !")
+                    st.rerun()
 
         with col_actions:
             st.markdown("### Actions")
             
+            # Use the possibly updated email for the mailto link
+            dest_email = new_email if 'new_email' in locals() else row.get('Email', '')
+            
             # --- EMAIL BUTTON ---
             email_subject = "Plouf par SCOPA"
             
-            # Pick a random template if not already set for this prospect
             if 'current_email_body' not in st.session_state:
                 st.session_state.current_email_body = random.choice(EMAIL_TEMPLATES)
             
             email_body = st.session_state.current_email_body
-            dest_email = row.get('Email', '')
             
             if dest_email and '@' in str(dest_email):
                 mailto_link = f"mailto:{dest_email}?subject={quote(email_subject)}&body={quote(email_body)}"
@@ -264,8 +420,16 @@ with tab_prospect:
             
             with col_act1:
                 if st.button("✉️ Email Envoyé", use_container_width=True, type="primary"):
+                    # Save changes too
+                    df.at[idx, 'First Name'] = new_first_name
+                    df.at[idx, 'Last Name'] = new_last_name
+                    df.at[idx, 'Email'] = new_email
+                    df.at[idx, 'Phone'] = new_phone
+                    df.at[idx, 'Title'] = new_title
+                    df.at[idx, 'Company Name for Emails'] = new_company
                     df.at[idx, 'Contacté'] = f"Contacté le {datetime.now().strftime('%d/%m/%Y')}"
                     df.at[idx, 'Commentaire'] = comment
+                    df.at[idx, 'Commercial'] = st.session_state['username']
                     save_data(df)
                     st.session_state.df = df
                     if 'current_email_body' in st.session_state: del st.session_state.current_email_body
@@ -274,8 +438,12 @@ with tab_prospect:
 
             with col_act2:
                 if st.button("🚫 Pas intéressé", use_container_width=True):
+                    # Save changes too
+                    df.at[idx, 'Email'] = new_email 
+                    df.at[idx, 'Phone'] = new_phone
                     df.at[idx, 'Contacté'] = f"Contact off"
                     df.at[idx, 'Commentaire'] = comment
+                    df.at[idx, 'Commercial'] = st.session_state['username']
                     save_data(df)
                     st.session_state.df = df
                     if 'current_email_body' in st.session_state: del st.session_state.current_email_body
@@ -290,8 +458,9 @@ with tab_prospect:
                 st.rerun()
 
 # --- TAB 2: ANALYTICS ---
-with tab_stats:
-    st.markdown("### 📈 Performance & Suivi")
+if tab_stats:
+    with tab_stats:
+        st.markdown("### 📈 Performance & Suivi")
     
     # Filter contacted
     contacted_df = df[df['Contacté'].notna() & (df['Contacté'] != "None")].copy()
@@ -361,6 +530,11 @@ with tab_relance:
     
     search_df = df[df['Contacté'].notna() & (df['Contacté'] != "None")].copy()
     
+    # Filtrage par commercial et origine si pas admin
+    if st.session_state['role'] != 'admin':
+        search_df = search_df[search_df['Commercial'] == st.session_state['username']]
+        search_df = search_df[search_df['origine_contact'] != 'llbb']
+    
     # Filter only those that need follow up (e.g., status contains 'Contacté' or 'oui' but NOT 'off', 'RDV', 'Réponse')
     # Use a simpler filter for now: just exclude explicit "Stop" signals if you want, 
     # but user said 'aleatoire parmis les plus vieux', so let's take those with dates.
@@ -408,6 +582,7 @@ with tab_relance:
                         df.at[idx, 'Commentaire'] = new_note
                         # Update status? Maybe keep it simple or change to "Relancé le..."
                         df.at[idx, 'Contacté'] = f"Relancé le {datetime.now().strftime('%d/%m/%Y')}"
+                        df.at[idx, 'Commercial'] = st.session_state['username']
                         save_data(df)
                         st.session_state.df = df
                         st.success("Statut mis à jour !")
@@ -419,6 +594,11 @@ with tab_history:
     
     # Reuse contacted_df from Stats tab logic (or re-filter)
     history_df = df[df['Contacté'].notna() & (df['Contacté'] != "None")].copy()
+    
+    # Filtrage par commercial et origine si pas admin
+    if st.session_state['role'] != 'admin':
+        history_df = history_df[history_df['Commercial'] == st.session_state['username']]
+        history_df = history_df[history_df['origine_contact'] != 'llbb']
     
     if history_df.empty:
         st.info("Aucun historique disponible.")
@@ -436,11 +616,16 @@ with tab_history:
         # Display Dataframe
         st.dataframe(
             display_df[[
-                'First Name', 'Last Name', 'Company Name for Emails', 'Email', 
-                'Contacté', 'Commentaire', 'Industry', 'origine_contact'
+                'First Name', 'Last Name', 'Company Name for Emails', 'Email', 'Phone',
+                'Contacté', 'Commentaire', 'Industry', 'origine_contact', 'Commercial',
+                'Person Linkedin Url', 'Website'
             ]], 
             use_container_width=True,
-            height=600
+            height=600,
+            column_config={
+                "Person Linkedin Url": st.column_config.LinkColumn("LinkedIn", display_text="🔗 Profil"),
+                "Website": st.column_config.LinkColumn("Site Web", display_text="🌐 Visiter")
+            }
         )
         
         st.caption(f"Total: {len(display_df)} contacts trouvés.")

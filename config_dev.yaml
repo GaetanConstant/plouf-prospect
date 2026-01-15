@@ -4,10 +4,17 @@ credentials:
       email: gconstant@plouf.com
       name: Gaëtan Constant
       password: $2b$12$n9NPjXPmCbb5ah/gzJF.YOHS6NnKcnP14.r/rg.q7g2ccbeT7.fAC # 'scopa' hashed
+      role: admin
     admin:
       email: admin@plouf.com
       name: Admin
       password: $2b$12$n9NPjXPmCbb5ah/gzJF.YOHS6NnKcnP14.r/rg.q7g2ccbeT7.fAC # 'scopa' hashed
+      role: admin
+    aperez:
+      email: aperez@plouf.com
+      name: Alexis Perez
+      password: $2b$12$Sw4Ne2Ca6P1XCUGt0iAEeOdkj.JIu./5ImmavJccmBcVNsxqtiQ/q # 'aperez' hashed
+      role: usr
 cookie:
   expiry_days: 30
   key: random_signature_key
