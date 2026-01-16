@@ -89,8 +89,10 @@ def initialiser_driver():
 # Initialiser le driver
 driver = initialiser_driver()
 if driver is None:
-    print("❌ Impossible d'initialiser le driver Chrome. Vérifiez votre installation.")
+    print("❌ Impossible d'initialiser le driver Firefox. Vérifiez votre installation.")
     sys.exit(1)
+else:
+    print(f"✅ Driver Firefox initialisé avec succès (User-Agent: {options.arguments[-1]})")
 
 # Fonction pour gérer les consentements de cookies (uniquement sur la page principale)
 def handle_cookie_consent():
@@ -257,8 +259,18 @@ with open(FICHIER_RESULTAT, 'a' if fichier_existe else 'w', newline='', encoding
                     # Ouvrir Google Maps avec le mot-clé
                     print(f"📡 Navigation vers: {google_maps_url}")
                     driver.get(google_maps_url)
-                    time.sleep(8) # Attente généreuse pour le serveur
-                    success = True
+                    time.sleep(5)
+                    print(f"📄 Titre de la page : {driver.title}")
+                    print(f"🔗 URL actuelle : {driver.current_url}")
+                    
+                    if "consent" in driver.current_url or "consent" in driver.title.lower():
+                        print("🍪 Page de consentement détectée, tentative de bypass...")
+                        handle_cookie_consent()
+                    
+                    if "Avez-vous trouvé l'entreprise" in driver.page_source or "Google Maps" in driver.title:
+                        success = True
+                    else:
+                        print("⚠️ La page ne semble pas être Google Maps. Nouvel essai...")
                 except Exception as e:
                     tentative += 1
                     print(f"⚠️ Erreur de connexion (tentative {tentative}/{MAX_TENTATIVES_CONNEXION}): {e}")
