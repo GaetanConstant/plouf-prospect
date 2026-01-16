@@ -27,16 +27,19 @@ MODE_HEADLESS = True  # Le mode headless est activé pour éviter les perturbati
 # Nombre maximum de fiches à traiter par mot-clé (pour accélérer le traitement)
 MAX_FICHES_PAR_MOT_CLE = 20  # Limiter à 20 fiches par mot-clé pour aller plus vite
 
-# Délais d'attente (en secondes) - réduire pour accélérer le traitement
-DELAI_CHARGEMENT_PAGE = 2  # Réduit de 5 à 2 secondes
-DELAI_SCROLL = 1  # Réduit de 2.5 à 1 seconde
+# Délais d'attente (en secondes) - augmenter pour la stabilité sur serveur
+DELAI_CHARGEMENT_PAGE = 5  # Augmenté à 5 secondes pour le serveur
+DELAI_SCROLL = 2  # Augmenté à 2 secondes
 DELAI_TRAITEMENT_FICHE = 1  # Réduit de 3 à 1 seconde
 
 # Paramètres pour éviter le blocage
 MOTS_CLES_AVANT_PAUSE = 100  # Augmenté de 50 à 100 pour accélérer le traitement
 DUREE_PAUSE = 30  # Réduit de 60 à 30 secondes pour accélérer le traitement
-MAX_TENTATIVES_CONNEXION = 3  # Nombre de tentatives en cas d'erreur de connexion
-DELAI_ENTRE_TENTATIVES = 60  # Délai entre les tentatives en cas d'erreur (secondes)
+MAX_TENTATIVES_CONNEXION = 3
+DELAI_ENTRE_TENTATIVES = 10
+DEBUG_DIR = os.path.join(RESULTATS_DIR, "debug")
+if not os.path.exists(DEBUG_DIR):
+    os.makedirs(DEBUG_DIR)
 
 # Créer le dossier de résultats s'il n'existe pas
 if not os.path.exists(RESULTATS_DIR):
@@ -51,43 +54,22 @@ if MODE_HEADLESS:
 else:
     print("⚠️ Mode headless désactivé : Firefox sera visible")
 
-# Options Firefox
+# Options Firefox spécifiques
 options.set_preference("dom.webdriver.enabled", False)
 options.set_preference("useAutomationExtension", False)
 options.set_preference("permissions.default.image", 2)  # Désactive les images pour accélérer
-options.set_preference("dom.ipc.plugins.enabled.libflashplayer.so", "false")
 
-# Options communes (utiles dans les deux modes)
-options.add_argument("--disable-gpu")  # Désactive l'accélération GPU
-options.add_argument("--disable-infobars")  # Désactive les infobars
-options.add_argument("--disable-extensions")  # Désactive les extensions
-options.add_argument("--disable-dev-shm-usage")  # Évite les problèmes de mémoire partagée
-options.add_argument("--no-sandbox")  # Désactive le sandbox
-options.add_argument("--disable-blink-features=AutomationControlled")  # Masque l'automatisation
-options.add_argument("--disable-features=TranslateUI")  # Désactive les suggestions de traduction
-options.add_argument("--disable-hang-monitor")  # Désactive le moniteur de blocage
-options.add_argument("--disable-prompt-on-repost")  # Désactive les prompts de repost
-options.add_argument("--disable-sync")  # Désactive la synchronisation
-options.add_argument("--disable-background-networking")  # Désactive le réseau en arrière-plan
-options.add_argument("--disable-default-apps")  # Désactive les applications par défaut
-options.add_argument("--disable-client-side-phishing-detection")  # Désactive la détection de phishing
-options.add_argument("--disable-component-update")  # Désactive les mises à jour des composants
-options.add_argument("--disable-domain-reliability")  # Désactive la fiabilité du domaine
-options.add_argument("--disable-breakpad")  # Désactive le rapport de plantage
-options.add_argument("--disable-ipc-flooding-protection")  # Désactive la protection contre les inondations IPC
-options.add_argument("--enable-features=NetworkServiceInProcess2")  # Service réseau en processus
-options.add_argument("--disable-backgrounding-occluded-windows")  # Empêche la mise en arrière-plan des fenêtres occultées
-options.add_argument("--disable-renderer-backgrounding")  # Empêche la mise en arrière-plan du renderer
-options.add_argument("--disable-background-timer-throttling")  # Désactive la limitation des timers en arrière-plan
-options.add_argument("--blink-settings=imagesEnabled=false")  # Désactive le chargement des images pour accélérer
+# Taille de la fenêtre indispensable pour le mode headless sur serveur
+options.add_argument("--width=1920")
+options.add_argument("--height=1080")
+# Nettoyage des options Chrome inutiles pour Firefox
+options.add_argument("--disable-gpu")
 
-# Liste de user agents réalistes pour éviter la détection
+# Liste de user agents Firefox RÉALISTES (obligatoire pour Firefox)
 user_agents = [
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Safari/605.1.15",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36 Edg/116.0.1938.69",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/117.0"
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 14.1; rv:120.0) Gecko/20100101 Firefox/120.0",
+    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0"
 ]
 
 # Utiliser un user agent aléatoire
@@ -107,8 +89,10 @@ def initialiser_driver():
 # Initialiser le driver
 driver = initialiser_driver()
 if driver is None:
-    print("❌ Impossible d'initialiser le driver Chrome. Vérifiez votre installation.")
+    print("❌ Impossible d'initialiser le driver Firefox. Vérifiez votre installation.")
     sys.exit(1)
+else:
+    print(f"✅ Driver Firefox initialisé avec succès (User-Agent: {options.arguments[-1]})")
 
 # Fonction pour gérer les consentements de cookies (uniquement sur la page principale)
 def handle_cookie_consent():
@@ -116,31 +100,49 @@ def handle_cookie_consent():
         # Attendre que la page soit chargée et que le bouton de consentement soit visible
         wait = WebDriverWait(driver, 5)  # Réduit de 10 à 5 secondes
         
-        # Différents sélecteurs possibles pour le bouton "Tout accepter"
+        # Sélecteurs robustes incluant l'anglais (fréquent sur serveur)
         consent_button_selectors = [
             "//button[contains(., 'Tout accepter')]",
-            "//button[contains(., 'J\'accepte')]",
-            "//button[contains(., 'Accepter')]",
-            "//button[contains(@id, 'consent')]",
-            "//div[contains(@id, 'consent')]//button",
-            "//div[contains(@class, 'consent')]//button",
-            "//button[contains(@class, 'consent')]",
-            "//button[contains(@aria-label, 'consent')]",
-            "//button[contains(@title, 'consent')]"
+            "//button[contains(., 'Accept all')]",
+            "//button[contains(., 'I agree')]",
+            "//button[contains(., 'Accéder')]",
+            "//form//button",  # Souvent le seul bouton du formulaire de consentement
+            "//button[@aria-label='Accept all']"
         ]
         
+        # 1. Tenter de cliquer sur les boutons directement
         for selector in consent_button_selectors:
             try:
-                consent_button = wait.until(EC.element_to_be_clickable((By.XPATH, selector)))
-                print("✅ Bouton de consentement trouvé, clic en cours...")
-                consent_button.click()
-                time.sleep(1)  # Réduit de 2 à 1 seconde
-                print("✅ Consentement accepté")
-                return True
+                buttons = driver.find_elements(By.XPATH, selector)
+                for btn in buttons:
+                    if btn.is_displayed():
+                        btn.click()
+                        print(f"✅ Consentement accepté (bouton direct: {selector})")
+                        time.sleep(2)
+                        return True
             except:
                 continue
         
-        print("⚠️ Aucun bouton de consentement trouvé, continuation...")
+        # 2. Tenter de chercher dans les IFRAMES (Fréquent sur serveur)
+        iframes = driver.find_elements(By.TAG_NAME, "iframe")
+        for index, iframe in enumerate(iframes):
+            try:
+                driver.switch_to.frame(iframe)
+                for selector in consent_button_selectors:
+                    buttons = driver.find_elements(By.XPATH, selector)
+                    for btn in buttons:
+                        if btn.is_displayed():
+                            btn.click()
+                            print(f"✅ Consentement accepté (dans iframe {index})")
+                            driver.switch_to.default_content()
+                            time.sleep(2)
+                            return True
+                driver.switch_to.default_content()
+            except:
+                driver.switch_to.default_content()
+                continue
+        
+        print("⚠️ Aucun bouton de consentement cliquable trouvé")
         return False
     except Exception as e:
         print(f"⚠️ Erreur lors de la gestion du consentement: {e}")
@@ -244,9 +246,9 @@ with open(FICHIER_RESULTAT, 'a' if fichier_existe else 'w', newline='', encoding
                     raise Exception("Impossible de réinitialiser le driver après plusieurs tentatives")
         
         try:
-            # Créer l'URL Google Maps avec le mot-clé
+            # Utiliser .com avec hl=fr pour stabiliser la langue et les sélecteurs
             encoded_keyword = urllib.parse.quote(mot_cle)
-            google_maps_url = f"https://www.google.fr/maps/search/{encoded_keyword}"
+            google_maps_url = f"https://www.google.com/maps/search/{encoded_keyword}?hl=fr"
             
             # Tentatives multiples en cas d'erreur de connexion
             tentative = 0
@@ -255,9 +257,21 @@ with open(FICHIER_RESULTAT, 'a' if fichier_existe else 'w', newline='', encoding
             while tentative < MAX_TENTATIVES_CONNEXION and not success:
                 try:
                     # Ouvrir Google Maps avec le mot-clé
+                    print(f"📡 Navigation vers: {google_maps_url}")
                     driver.get(google_maps_url)
-                    time.sleep(DELAI_CHARGEMENT_PAGE)  # Attendre que la page se charge
-                    success = True
+                    time.sleep(5)
+                    print(f"📄 Titre de la page : {driver.title}")
+                    print(f"🔗 URL actuelle : {driver.current_url}")
+                    
+                    if "consent" in driver.current_url or "consent" in driver.title.lower():
+                        print("🍪 Page de consentement détectée, tentative de bypass...")
+                        handle_cookie_consent()
+                    
+                    if "google maps" in driver.title.lower() or "maps" in driver.current_url.lower():
+                        success = True
+                    else:
+                        print("⚠️ La page ne semble pas être Google Maps. Tentative de continuation quand même...")
+                        success = True # On tente quand même 
                 except Exception as e:
                     tentative += 1
                     print(f"⚠️ Erreur de connexion (tentative {tentative}/{MAX_TENTATIVES_CONNEXION}): {e}")
@@ -276,8 +290,16 @@ with open(FICHIER_RESULTAT, 'a' if fichier_existe else 'w', newline='', encoding
                         if driver is None:
                             raise Exception("Impossible de réinitialiser le driver")
             
-            # Gérer le consentement des cookies si nécessaire (uniquement sur la page principale)
+            # Gérer le consentement des cookies
+            time.sleep(2)
             handle_cookie_consent()
+            time.sleep(2)
+
+            # Vérifier si on est sur la page de résultats ou bloqué
+            if "consent.google" in driver.current_url:
+                print("⚠️ Toujours bloqué sur la page de consentement, tentative forcée...")
+                driver.get(google_maps_url) # Recharger
+                time.sleep(3)
             
             # Collecter les URLs des fiches
             urls = set()
@@ -286,28 +308,18 @@ with open(FICHIER_RESULTAT, 'a' if fichier_existe else 'w', newline='', encoding
             
             while attempt < max_attempts:
                 try:
-                    # Essayer différents sélecteurs pour trouver les résultats
-                    selectors = [
-                        '//div[@role="feed"]',
-                        '//div[contains(@class, "section-result")]',
-                        '//a[contains(@href, "/maps/place/")]',
-                        '//div[contains(@class, "Nv2PK")]',
-                        '//div[contains(@class, "lI9IFe")]',
-                        '//div[contains(@class, "bfdHYd")]'
-                    ]
-                    
-                    scrollable_div = None
-                    for selector in selectors:
+                    # Essayer de trouver la zone scrollable (colonne de gauche)
+                    try:
+                        scrollable_div = driver.find_element(By.CSS_SELECTOR, "div[role='feed']")
+                    except:
                         try:
-                            elements = driver.find_elements(By.XPATH, selector)
-                            if elements:
-                                scrollable_div = elements[0]
-                                break
+                            # Sélecteur de secours pour la zone de recherche
+                            scrollable_div = driver.find_element(By.XPATH, "//div[contains(@aria-label, 'Résultats')]")
                         except:
-                            continue
+                            scrollable_div = None
                     
                     if not scrollable_div:
-                        # Si aucun des sélecteurs ne fonctionne, utiliser le body pour scroller
+                        print("  ⚠️ Zone scrollable non trouvée, utilisation du body")
                         scrollable_div = driver.find_element(By.TAG_NAME, 'body')
                     
                     # Scroll pour charger plus de résultats
@@ -317,19 +329,30 @@ with open(FICHIER_RESULTAT, 'a' if fichier_existe else 'w', newline='', encoding
                     
                     for i in range(max_scrolls):
                         # Scroller dans la page
-                        driver.execute_script("window.scrollBy(0, 500);")  # Scroll plus doux
-                        driver.execute_script("arguments[0].scrollTop = arguments[0].scrollHeight", scrollable_div)
+                        try:
+                            driver.execute_script("arguments[0].scrollTop += 1000", scrollable_div)
+                        except:
+                            driver.execute_script("window.scrollBy(0, 1000);")
                         time.sleep(DELAI_SCROLL)
                         
-                        # Collecter les liens vers les fiches
-                        links = driver.find_elements(By.XPATH, '//a[contains(@href, "/maps/place/")]')
-                        for link in links:
-                            href = link.get_attribute("href")
-                            if href and "/maps/place/" in href:
-                                urls.add(href)
-                                # Si on a atteint le nombre maximum de fiches, on arrête
-                                if len(urls) >= MAX_FICHES_PAR_MOT_CLE:
-                                    break
+                        # Collecter les liens vers les fiches (Vérification de plusieurs sélecteurs)
+                        place_selectors = [
+                            '//a[contains(@href, "/maps/place/")]',
+                            '//a[contains(@aria-label, "")]',
+                            '//div[contains(@class, "Nv2PK")]//a',
+                            '//div[contains(@class, "hfpxzc")]',
+                            '//a[contains(@class, "hfpxzc")]'
+                        ]
+                        
+                        for p_selector in place_selectors:
+                            links = driver.find_elements(By.XPATH, p_selector)
+                            for link in links:
+                                href = link.get_attribute("href")
+                                if href and "/maps/place/" in href:
+                                    urls.add(href)
+                        
+                        if len(urls) >= MAX_FICHES_PAR_MOT_CLE:
+                            break
                         
                         current_count = len(urls)
                         print(f"  🌀 Scroll {i+1} → {current_count} fiches collectées")
@@ -368,8 +391,13 @@ with open(FICHIER_RESULTAT, 'a' if fichier_existe else 'w', newline='', encoding
             
             if not urls:
                 print(f"  ⚠️ Aucune fiche trouvée pour le mot-clé: {mot_cle}")
-                # Écrire une ligne vide pour ce mot-clé pour indiquer qu'il a été traité
-                csv_writer.writerow([mot_cle, "", "", "", ""])
+                # SAUVEGARDE IMAGE POUR DEBUG
+                debug_file = os.path.join(DEBUG_DIR, f"debug_{int(time.time())}.png")
+                driver.save_screenshot(debug_file)
+                print(f"  📸 Capture d'écran de débug sauvegardée: {debug_file}")
+                
+                # Écrire une ligne brute pour indiquer l'échec
+                csv_writer.writerow([mot_cle, "ERREUR_AUCUN_RESULTAT", "", "", ""])
                 continue
             
             # En mode headless, pas besoin de créer un nouvel onglet, on peut directement naviguer
