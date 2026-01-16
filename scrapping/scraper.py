@@ -62,13 +62,11 @@ options.add_argument("--height=1080")
 # Nettoyage des options Chrome inutiles pour Firefox
 options.add_argument("--disable-gpu")
 
-# Liste de user agents réalistes pour éviter la détection
+# Liste de user agents Firefox RÉALISTES (obligatoire pour Firefox)
 user_agents = [
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Safari/605.1.15",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36 Edg/116.0.1938.69",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/117.0"
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 14.1; rv:120.0) Gecko/20100101 Firefox/120.0",
+    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0"
 ]
 
 # Utiliser un user agent aléatoire
@@ -97,17 +95,14 @@ def handle_cookie_consent():
         # Attendre que la page soit chargée et que le bouton de consentement soit visible
         wait = WebDriverWait(driver, 5)  # Réduit de 10 à 5 secondes
         
-        # Différents sélecteurs possibles pour le bouton "Tout accepter"
+        # Sélecteurs robustes incluant l'anglais (fréquent sur serveur)
         consent_button_selectors = [
             "//button[contains(., 'Tout accepter')]",
-            "//button[contains(., 'J\'accepte')]",
-            "//button[contains(., 'Accepter')]",
-            "//button[contains(@id, 'consent')]",
-            "//div[contains(@id, 'consent')]//button",
-            "//div[contains(@class, 'consent')]//button",
-            "//button[contains(@class, 'consent')]",
-            "//button[contains(@aria-label, 'consent')]",
-            "//button[contains(@title, 'consent')]"
+            "//button[contains(., 'Accept all')]",
+            "//button[contains(., 'I agree')]",
+            "//button[contains(., 'Accéder')]",
+            "//form//button",  # Souvent le seul bouton du formulaire de consentement
+            "//button[@aria-label='Accept all']"
         ]
         
         for selector in consent_button_selectors:
@@ -257,8 +252,16 @@ with open(FICHIER_RESULTAT, 'a' if fichier_existe else 'w', newline='', encoding
                         if driver is None:
                             raise Exception("Impossible de réinitialiser le driver")
             
-            # Gérer le consentement des cookies si nécessaire (uniquement sur la page principale)
+            # Gérer le consentement des cookies
+            time.sleep(2)
             handle_cookie_consent()
+            time.sleep(2)
+
+            # Vérifier si on est sur la page de résultats ou bloqué
+            if "consent.google" in driver.current_url:
+                print("⚠️ Toujours bloqué sur la page de consentement, tentative forcée...")
+                driver.get(google_maps_url) # Recharger
+                time.sleep(3)
             
             # Collecter les URLs des fiches
             urls = set()
