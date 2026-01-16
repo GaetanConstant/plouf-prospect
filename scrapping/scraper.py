@@ -342,15 +342,24 @@ with open(FICHIER_RESULTAT, 'a' if fichier_existe else 'w', newline='', encoding
                         driver.execute_script("arguments[0].scrollTop = arguments[0].scrollHeight", scrollable_div)
                         time.sleep(DELAI_SCROLL)
                         
-                        # Collecter les liens vers les fiches
-                        links = driver.find_elements(By.XPATH, '//a[contains(@href, "/maps/place/")]')
-                        for link in links:
-                            href = link.get_attribute("href")
-                            if href and "/maps/place/" in href:
-                                urls.add(href)
-                                # Si on a atteint le nombre maximum de fiches, on arrête
-                                if len(urls) >= MAX_FICHES_PAR_MOT_CLE:
-                                    break
+                        # Collecter les liens vers les fiches (Vérification de plusieurs sélecteurs)
+                        place_selectors = [
+                            '//a[contains(@href, "/maps/place/")]',
+                            '//a[contains(@aria-label, "")]',
+                            '//div[contains(@class, "Nv2PK")]//a',
+                            '//div[contains(@class, "hfpxzc")]',
+                            '//a[contains(@class, "hfpxzc")]'
+                        ]
+                        
+                        for p_selector in place_selectors:
+                            links = driver.find_elements(By.XPATH, p_selector)
+                            for link in links:
+                                href = link.get_attribute("href")
+                                if href and "/maps/place/" in href:
+                                    urls.add(href)
+                        
+                        if len(urls) >= MAX_FICHES_PAR_MOT_CLE:
+                            break
                         
                         current_count = len(urls)
                         print(f"  🌀 Scroll {i+1} → {current_count} fiches collectées")

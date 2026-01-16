@@ -212,3 +212,21 @@ with tab_results:
                 st.rerun()
     else:
         st.info("Aucun résultat pour le moment. Allez dans l'onglet 'Lancement' !")
+
+    # --- DEBUG SECTION ---
+    with st.expander("🛠️ Diagnostics (Si 0 résultats)"):
+        debug_dir = os.path.join(RESULTATS_DIR_RAW, "debug")
+        if os.path.exists(debug_dir):
+            screenshots = sorted([f for f in os.listdir(debug_dir) if f.endswith(".png")], reverse=True)
+            if screenshots:
+                st.warning(f"Dernière capture d'écran de débug ({screenshots[0]}) :")
+                st.image(os.path.join(debug_dir, screenshots[0]))
+                if st.button("🗑️ Effacer les captures de débug"):
+                    import shutil
+                    shutil.rmtree(debug_dir)
+                    os.makedirs(debug_dir)
+                    st.rerun()
+            else:
+                st.write("Aucun fichier de débug trouvé.")
+        else:
+            st.write("Le dossier de débug n'a pas encore été créé.")
