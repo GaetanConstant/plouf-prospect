@@ -35,8 +35,11 @@ DELAI_TRAITEMENT_FICHE = 1  # Réduit de 3 à 1 seconde
 # Paramètres pour éviter le blocage
 MOTS_CLES_AVANT_PAUSE = 100  # Augmenté de 50 à 100 pour accélérer le traitement
 DUREE_PAUSE = 30  # Réduit de 60 à 30 secondes pour accélérer le traitement
-MAX_TENTATIVES_CONNEXION = 3  # Nombre de tentatives en cas d'erreur de connexion
-DELAI_ENTRE_TENTATIVES = 60  # Délai entre les tentatives en cas d'erreur (secondes)
+MAX_TENTATIVES_CONNEXION = 3
+DELAI_ENTRE_TENTATIVES = 10
+DEBUG_DIR = os.path.join(RESULTATS_DIR, "debug")
+if not os.path.exists(DEBUG_DIR):
+    os.makedirs(DEBUG_DIR)
 
 # Créer le dossier de résultats s'il n'existe pas
 if not os.path.exists(RESULTATS_DIR):
@@ -252,8 +255,9 @@ with open(FICHIER_RESULTAT, 'a' if fichier_existe else 'w', newline='', encoding
             while tentative < MAX_TENTATIVES_CONNEXION and not success:
                 try:
                     # Ouvrir Google Maps avec le mot-clé
+                    print(f"📡 Navigation vers: {google_maps_url}")
                     driver.get(google_maps_url)
-                    time.sleep(DELAI_CHARGEMENT_PAGE)  # Attendre que la page se charge
+                    time.sleep(8) # Attente généreuse pour le serveur
                     success = True
                 except Exception as e:
                     tentative += 1
@@ -373,8 +377,13 @@ with open(FICHIER_RESULTAT, 'a' if fichier_existe else 'w', newline='', encoding
             
             if not urls:
                 print(f"  ⚠️ Aucune fiche trouvée pour le mot-clé: {mot_cle}")
-                # Écrire une ligne vide pour ce mot-clé pour indiquer qu'il a été traité
-                csv_writer.writerow([mot_cle, "", "", "", ""])
+                # SAUVEGARDE IMAGE POUR DEBUG
+                debug_file = os.path.join(DEBUG_DIR, f"debug_{int(time.time())}.png")
+                driver.save_screenshot(debug_file)
+                print(f"  📸 Capture d'écran de débug sauvegardée: {debug_file}")
+                
+                # Écrire une ligne brute pour indiquer l'échec
+                csv_writer.writerow([mot_cle, "ERREUR_AUCUN_RESULTAT", "", "", ""])
                 continue
             
             # En mode headless, pas besoin de créer un nouvel onglet, on peut directement naviguer
