@@ -7,6 +7,13 @@ uv.lock
 # security
 config.yaml
 
+# fake files
+progression.txt
+progression.txt.*
+debug/
+resultats/
+resultats_enrichis/
+
 # C extensions
 *.so
 

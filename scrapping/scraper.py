@@ -24,8 +24,14 @@ ENRICHISSEUR_SCRIPT = os.path.join(BASE_DIR, "enrichisseur.py")
 # Mode headless (true = invisible, false = visible)
 MODE_HEADLESS = True  # Le mode headless est activé pour éviter les perturbations
 
-# Nombre maximum de fiches à traiter par mot-clé (pour accélérer le traitement)
-MAX_FICHES_PAR_MOT_CLE = 20  # Limiter à 20 fiches par mot-clé pour aller plus vite
+# Nombre maximum de fiches à traiter par mot-clé
+MAX_FICHES_PAR_MOT_CLE = 20  # Valeur par défaut
+if len(sys.argv) > 1:
+    try:
+        MAX_FICHES_PAR_MOT_CLE = int(sys.argv[1])
+        print(f"📊 Limite fixée par argument : {MAX_FICHES_PAR_MOT_CLE} fiches")
+    except:
+        pass
 
 # Délais d'attente (en secondes) - augmenter pour la stabilité sur serveur
 DELAI_CHARGEMENT_PAGE = 5  # Augmenté à 5 secondes pour le serveur

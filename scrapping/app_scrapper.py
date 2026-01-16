@@ -72,32 +72,73 @@ with tab_launch:
     with col2:
         zipcode = st.text_input("📍 Dans quel secteur ?", placeholder="Ex: 69000, Lyon...")
 
+    st.markdown("---")
+    st.subheader("📁 Ou importer un fichier CSV (Batch)")
+    uploaded_file = st.file_uploader("Upload d'un CSV (Colonnes 'Sociétés' et 'Codes')", type=["csv"])
+    
+    if uploaded_file is not None:
+        try:
+            # Lire tout en string pour garder les zéros des codes postaux (ex: 01000)
+            df_upload = pd.read_csv(uploaded_file, sep=None, engine='python', dtype=str)
+            st.write("Aperçu du fichier :")
+            st.dataframe(df_upload.head())
+            
+            # Normalisation des noms de colonnes (enlever espaces, minuscules)
+            df_upload.columns = [c.strip() for c in df_upload.columns]
+            
+            col_soc = next((c for c in df_upload.columns if 'sociét' in c.lower()), None)
+            col_code = next((c for c in df_upload.columns if 'code' in c.lower()), None)
+            
+            if col_soc and col_code:
+                st.success(f"Colonnes détectées : '{col_soc}' et '{col_code}'")
+                
+                # Nettoyage et complétion des codes postaux (Garder 5 chiffres)
+                df_upload[col_code] = df_upload[col_code].astype(str).str.strip().str.zfill(5)
+                df_upload[col_soc] = df_upload[col_soc].astype(str).str.strip()
+                
+                queries = (df_upload[col_soc] + " " + df_upload[col_code] + " FR").tolist()
+                st.info(f"{len(queries)} mots-clés prêts à être traités.")
+            else:
+                st.error("Colonnes 'Sociétés' et 'Codes' non trouvées. Vérifiez l'en-tête de votre CSV.")
+                queries = None
+        except Exception as e:
+            st.error(f"Erreur de lecture : {e}")
+            queries = None
+    else:
+        queries = None
+
     col_btn1, col_btn2 = st.columns(2)
     
     with col_btn1:
-        launch_scraping = st.button("🔍 Démarrer le Scraping Google Maps")
+        text_btn = "🔍 Démarrer le Scraping"
+        if queries:
+            text_btn = f"🔍 Scraper les {len(queries)} sociétés du CSV"
+        launch_scraping = st.button(text_btn)
     
     with col_btn2:
         launch_enrich = st.button("✨ Enrichir les données existantes (Emails/Tél)")
 
     # LOGIC SCRAPING
     if launch_scraping:
-        if not keyword or not zipcode:
-            st.error("Veuillez renseigner un mot-clé ET un secteur.")
+        if not queries and (not keyword or not zipcode):
+            st.error("Veuillez renseigner un mot-clé ET un secteur, ou uploader un CSV valide.")
         else:
-            query = f"{keyword} {zipcode} FR"
-            pd.DataFrame({"mot_cle": [query]}).to_csv(MOTS_CLES_CSV, index=False)
+            if not queries:
+                query = f"{keyword} {zipcode} FR"
+                pd.DataFrame({"mot_cle": [query]}).to_csv(MOTS_CLES_CSV, index=False)
+                st.info(f"Démarrage du scraping (**{browser_type}**) pour : **{query}**")
+            else:
+                pd.DataFrame({"mot_cle": queries}).to_csv(MOTS_CLES_CSV, index=False)
+                st.info(f"Démarrage du scraping (**{browser_type}**) pour **{len(queries)}** recherches...")
             
             script = "scraper.py" if browser_type == "Firefox" else "scraper_chrome.py"
-            st.info(f"Démarrage du scraping (**{browser_type}**) pour : **{query}**")
-            
             pbar = st.progress(0)
             status = st.empty()
             log_container = st.empty()
             
             try:
                 process = subprocess.Popen(
-                    ["uv", "run", "python", "-u", script],
+                    ["uv", "run", "python", "-u", script, str(max_fiches)],
                     cwd=SCRAPPING_DIR,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
@@ -112,9 +153,22 @@ with tab_launch:
                     if line:
                         full_logs += line
                         log_container.code("\n".join(full_logs.splitlines()[-15:]))
-                        if "🌀 Scroll" in line: pbar.progress(30); status.text("Maps: défilement et collecte...")
-                        elif "| ✅" in line: pbar.progress(60); status.text("Maps: extraction des fiches...")
-                        elif "Enrichissement" in line: pbar.progress(90); status.text("Transition vers l'enrichissement...")
+                        
+                        if "🔍 Traitement du mot-clé" in line:
+                            try:
+                                # Extraire "1/14" et le mot-clé
+                                parts = line.split(":")
+                                current_info = parts[0].split(" ")[3] # "1/14"
+                                current_keyword = parts[1].strip()
+                                status.markdown(f"🚀 Recherche **{current_info}** : **{current_keyword}**")
+                                # Calculer un progrès approximatif
+                                current_idx, total_idx = map(int, current_info.split("/"))
+                                pbar.progress(current_idx / total_idx)
+                            except:
+                                pass
+                        elif "🌀 Scroll" in line: status.text("Maps: défilement et collecte...")
+                        elif "| ✅" in line: status.text("Maps: extraction d'une fiche...")
+                        elif "Enrichissement" in line: pbar.progress(95); status.text("Lancement de l'enrichissement...")
 
                 process.wait()
                 pbar.progress(100)
