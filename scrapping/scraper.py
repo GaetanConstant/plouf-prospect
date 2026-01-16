@@ -27,9 +27,9 @@ MODE_HEADLESS = True  # Le mode headless est activé pour éviter les perturbati
 # Nombre maximum de fiches à traiter par mot-clé (pour accélérer le traitement)
 MAX_FICHES_PAR_MOT_CLE = 20  # Limiter à 20 fiches par mot-clé pour aller plus vite
 
-# Délais d'attente (en secondes) - réduire pour accélérer le traitement
-DELAI_CHARGEMENT_PAGE = 2  # Réduit de 5 à 2 secondes
-DELAI_SCROLL = 1  # Réduit de 2.5 à 1 seconde
+# Délais d'attente (en secondes) - augmenter pour la stabilité sur serveur
+DELAI_CHARGEMENT_PAGE = 5  # Augmenté à 5 secondes pour le serveur
+DELAI_SCROLL = 2  # Augmenté à 2 secondes
 DELAI_TRAITEMENT_FICHE = 1  # Réduit de 3 à 1 seconde
 
 # Paramètres pour éviter le blocage
@@ -51,35 +51,16 @@ if MODE_HEADLESS:
 else:
     print("⚠️ Mode headless désactivé : Firefox sera visible")
 
-# Options Firefox
+# Options Firefox spécifiques
 options.set_preference("dom.webdriver.enabled", False)
 options.set_preference("useAutomationExtension", False)
 options.set_preference("permissions.default.image", 2)  # Désactive les images pour accélérer
-options.set_preference("dom.ipc.plugins.enabled.libflashplayer.so", "false")
 
-# Options communes (utiles dans les deux modes)
-options.add_argument("--disable-gpu")  # Désactive l'accélération GPU
-options.add_argument("--disable-infobars")  # Désactive les infobars
-options.add_argument("--disable-extensions")  # Désactive les extensions
-options.add_argument("--disable-dev-shm-usage")  # Évite les problèmes de mémoire partagée
-options.add_argument("--no-sandbox")  # Désactive le sandbox
-options.add_argument("--disable-blink-features=AutomationControlled")  # Masque l'automatisation
-options.add_argument("--disable-features=TranslateUI")  # Désactive les suggestions de traduction
-options.add_argument("--disable-hang-monitor")  # Désactive le moniteur de blocage
-options.add_argument("--disable-prompt-on-repost")  # Désactive les prompts de repost
-options.add_argument("--disable-sync")  # Désactive la synchronisation
-options.add_argument("--disable-background-networking")  # Désactive le réseau en arrière-plan
-options.add_argument("--disable-default-apps")  # Désactive les applications par défaut
-options.add_argument("--disable-client-side-phishing-detection")  # Désactive la détection de phishing
-options.add_argument("--disable-component-update")  # Désactive les mises à jour des composants
-options.add_argument("--disable-domain-reliability")  # Désactive la fiabilité du domaine
-options.add_argument("--disable-breakpad")  # Désactive le rapport de plantage
-options.add_argument("--disable-ipc-flooding-protection")  # Désactive la protection contre les inondations IPC
-options.add_argument("--enable-features=NetworkServiceInProcess2")  # Service réseau en processus
-options.add_argument("--disable-backgrounding-occluded-windows")  # Empêche la mise en arrière-plan des fenêtres occultées
-options.add_argument("--disable-renderer-backgrounding")  # Empêche la mise en arrière-plan du renderer
-options.add_argument("--disable-background-timer-throttling")  # Désactive la limitation des timers en arrière-plan
-options.add_argument("--blink-settings=imagesEnabled=false")  # Désactive le chargement des images pour accélérer
+# Taille de la fenêtre indispensable pour le mode headless sur serveur
+options.add_argument("--width=1920")
+options.add_argument("--height=1080")
+# Nettoyage des options Chrome inutiles pour Firefox
+options.add_argument("--disable-gpu")
 
 # Liste de user agents réalistes pour éviter la détection
 user_agents = [
