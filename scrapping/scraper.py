@@ -105,18 +105,39 @@ def handle_cookie_consent():
             "//button[@aria-label='Accept all']"
         ]
         
+        # 1. Tenter de cliquer sur les boutons directement
         for selector in consent_button_selectors:
             try:
-                consent_button = wait.until(EC.element_to_be_clickable((By.XPATH, selector)))
-                print("✅ Bouton de consentement trouvé, clic en cours...")
-                consent_button.click()
-                time.sleep(1)  # Réduit de 2 à 1 seconde
-                print("✅ Consentement accepté")
-                return True
+                buttons = driver.find_elements(By.XPATH, selector)
+                for btn in buttons:
+                    if btn.is_displayed():
+                        btn.click()
+                        print(f"✅ Consentement accepté (bouton direct: {selector})")
+                        time.sleep(2)
+                        return True
             except:
                 continue
         
-        print("⚠️ Aucun bouton de consentement trouvé, continuation...")
+        # 2. Tenter de chercher dans les IFRAMES (Fréquent sur serveur)
+        iframes = driver.find_elements(By.TAG_NAME, "iframe")
+        for index, iframe in enumerate(iframes):
+            try:
+                driver.switch_to.frame(iframe)
+                for selector in consent_button_selectors:
+                    buttons = driver.find_elements(By.XPATH, selector)
+                    for btn in buttons:
+                        if btn.is_displayed():
+                            btn.click()
+                            print(f"✅ Consentement accepté (dans iframe {index})")
+                            driver.switch_to.default_content()
+                            time.sleep(2)
+                            return True
+                driver.switch_to.default_content()
+            except:
+                driver.switch_to.default_content()
+                continue
+        
+        print("⚠️ Aucun bouton de consentement cliquable trouvé")
         return False
     except Exception as e:
         print(f"⚠️ Erreur lors de la gestion du consentement: {e}")
@@ -220,9 +241,9 @@ with open(FICHIER_RESULTAT, 'a' if fichier_existe else 'w', newline='', encoding
                     raise Exception("Impossible de réinitialiser le driver après plusieurs tentatives")
         
         try:
-            # Créer l'URL Google Maps avec le mot-clé
+            # Utiliser .com avec hl=fr pour stabiliser la langue et les sélecteurs
             encoded_keyword = urllib.parse.quote(mot_cle)
-            google_maps_url = f"https://www.google.fr/maps/search/{encoded_keyword}"
+            google_maps_url = f"https://www.google.com/maps/search/{encoded_keyword}?hl=fr"
             
             # Tentatives multiples en cas d'erreur de connexion
             tentative = 0
