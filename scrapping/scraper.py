@@ -267,10 +267,11 @@ with open(FICHIER_RESULTAT, 'a' if fichier_existe else 'w', newline='', encoding
                         print("🍪 Page de consentement détectée, tentative de bypass...")
                         handle_cookie_consent()
                     
-                    if "Avez-vous trouvé l'entreprise" in driver.page_source or "Google Maps" in driver.title:
+                    if "google maps" in driver.title.lower() or "maps" in driver.current_url.lower():
                         success = True
                     else:
-                        print("⚠️ La page ne semble pas être Google Maps. Nouvel essai...")
+                        print("⚠️ La page ne semble pas être Google Maps. Tentative de continuation quand même...")
+                        success = True # On tente quand même 
                 except Exception as e:
                     tentative += 1
                     print(f"⚠️ Erreur de connexion (tentative {tentative}/{MAX_TENTATIVES_CONNEXION}): {e}")
@@ -307,28 +308,18 @@ with open(FICHIER_RESULTAT, 'a' if fichier_existe else 'w', newline='', encoding
             
             while attempt < max_attempts:
                 try:
-                    # Essayer différents sélecteurs pour trouver les résultats
-                    selectors = [
-                        '//div[@role="feed"]',
-                        '//div[contains(@class, "section-result")]',
-                        '//a[contains(@href, "/maps/place/")]',
-                        '//div[contains(@class, "Nv2PK")]',
-                        '//div[contains(@class, "lI9IFe")]',
-                        '//div[contains(@class, "bfdHYd")]'
-                    ]
-                    
-                    scrollable_div = None
-                    for selector in selectors:
+                    # Essayer de trouver la zone scrollable (colonne de gauche)
+                    try:
+                        scrollable_div = driver.find_element(By.CSS_SELECTOR, "div[role='feed']")
+                    except:
                         try:
-                            elements = driver.find_elements(By.XPATH, selector)
-                            if elements:
-                                scrollable_div = elements[0]
-                                break
+                            # Sélecteur de secours pour la zone de recherche
+                            scrollable_div = driver.find_element(By.XPATH, "//div[contains(@aria-label, 'Résultats')]")
                         except:
-                            continue
+                            scrollable_div = None
                     
                     if not scrollable_div:
-                        # Si aucun des sélecteurs ne fonctionne, utiliser le body pour scroller
+                        print("  ⚠️ Zone scrollable non trouvée, utilisation du body")
                         scrollable_div = driver.find_element(By.TAG_NAME, 'body')
                     
                     # Scroll pour charger plus de résultats
@@ -338,8 +329,10 @@ with open(FICHIER_RESULTAT, 'a' if fichier_existe else 'w', newline='', encoding
                     
                     for i in range(max_scrolls):
                         # Scroller dans la page
-                        driver.execute_script("window.scrollBy(0, 500);")  # Scroll plus doux
-                        driver.execute_script("arguments[0].scrollTop = arguments[0].scrollHeight", scrollable_div)
+                        try:
+                            driver.execute_script("arguments[0].scrollTop += 1000", scrollable_div)
+                        except:
+                            driver.execute_script("window.scrollBy(0, 1000);")
                         time.sleep(DELAI_SCROLL)
                         
                         # Collecter les liens vers les fiches (Vérification de plusieurs sélecteurs)
