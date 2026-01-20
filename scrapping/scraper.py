@@ -91,19 +91,37 @@ def initialiser_driver():
         # Tenter de détecter l'emplacement du binaire Firefox
         binary_loc = os.environ.get("FIREFOX_BIN")
         if not binary_loc:
-            # Chemins standards (priorité au .deb par rapport au snap)
-            possible_paths = ["/usr/bin/firefox", "/usr/local/bin/firefox", "/snap/bin/firefox"]
+            # Chemins standards (priorité au binaire direct dans /usr/lib)
+            possible_paths = [
+                "/usr/lib/firefox/firefox",  # Binaire réel (Ubuntu PPA)
+                "/usr/bin/firefox",          # Souvent un lien symbolique ou un script
+                "/usr/local/bin/firefox",
+                "/snap/bin/firefox"
+            ]
             for path in possible_paths:
                 if os.path.exists(path):
                     binary_loc = path
                     break
         
-        # Si toujours pas trouvé, utiliser which
+        # Si toujours pas trouvé, utiliser shutil.which
         if not binary_loc:
             binary_loc = shutil.which("firefox")
             
         if binary_loc:
-            print(f"ℹ️ Binaire Firefox détecté à : {binary_loc}")
+            print(f"🔎 Chemin brut détecté : {binary_loc}")
+            
+            # Résoudre les liens symboliques
+            if os.path.islink(binary_loc):
+                real_path = os.path.realpath(binary_loc)
+                print(f"🔗 Lien symbolique résolu : {binary_loc} -> {real_path}")
+                binary_loc = real_path
+                
+            print(f"ℹ️ Binaire Firefox utilisé : {binary_loc}")
+            
+            # Vérifier si c'est exécutable
+            if not os.access(binary_loc, os.X_OK):
+                print("⚠️ ATTENTION: Ce fichier ne semble pas être exécutable !")
+                
             options.binary_location = binary_loc
             if "snap" in binary_loc:
                 print("⚠️ ATTENTION: Firefox est installé via Snap. Cela cause souvent l'erreur 'Process unexpectedly closed'.")
