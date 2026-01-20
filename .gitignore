@@ -12,8 +12,8 @@ progression.txt
 progression.txt.*
 resultats/
 resultats_enrichis/
-mots_cles.csv
-motsclesdejafait.csv
+scrapping/mots_cles.csv
+scrapping/motsclesdejafait.csv
 *.png
 
 # C extensions
