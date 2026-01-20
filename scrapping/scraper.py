@@ -121,6 +121,18 @@ def initialiser_driver():
             # Vérifier si c'est exécutable
             if not os.access(binary_loc, os.X_OK):
                 print("⚠️ ATTENTION: Ce fichier ne semble pas être exécutable !")
+
+            # Vérifier si c'est un script shell (ce qui fait planter Geckodriver)
+            try:
+                with open(binary_loc, 'rb') as f:
+                    header = f.read(2)
+                if header == b'#!':
+                    print(f"⚠️ PROBLÈME DÉTECTÉ: '{binary_loc}' est un script (wrapper), pas le vrai binaire !")
+                    print("Cela cause l'erreur 'binary is not a Firefox executable'.")
+                    print("Si vous avez installé Firefox via apt sur Ubuntu, le vrai binaire est souvent ailleurs.")
+                    print("Essayez de chercher dans /usr/lib/firefox/firefox")
+            except Exception as e:
+                print(f"⚠️ Impossible de lire l'en-tête du fichier: {e}")
                 
             options.binary_location = binary_loc
             if "snap" in binary_loc:
