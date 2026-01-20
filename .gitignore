@@ -10,10 +10,10 @@ config.yaml
 # fake files
 progression.txt
 progression.txt.*
-motsclesdejafait.csv
-debug/
 resultats/
 resultats_enrichis/
+mots_cles.csv
+motsclesdejafait.csv
 *.png
 
 # C extensions
