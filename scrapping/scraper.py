@@ -11,6 +11,7 @@ from selenium.webdriver.firefox.service import Service as FirefoxService
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from datetime import datetime
+import shutil
 import os
 
 # === CONFIGURATION ===
@@ -86,16 +87,45 @@ options.add_argument(f"--user-agent={random.choice(user_agents)}")
 def initialiser_driver():
     try:
         from webdriver_manager.firefox import GeckoDriverManager
+        
+        # Tenter de détecter l'emplacement du binaire Firefox
+        binary_loc = os.environ.get("FIREFOX_BIN")
+        if not binary_loc:
+            # Chemins standards (priorité au .deb par rapport au snap)
+            possible_paths = ["/usr/bin/firefox", "/usr/local/bin/firefox", "/snap/bin/firefox"]
+            for path in possible_paths:
+                if os.path.exists(path):
+                    binary_loc = path
+                    break
+        
+        # Si toujours pas trouvé, utiliser which
+        if not binary_loc:
+            binary_loc = shutil.which("firefox")
+            
+        if binary_loc:
+            print(f"ℹ️ Binaire Firefox détecté à : {binary_loc}")
+            options.binary_location = binary_loc
+            if "snap" in binary_loc:
+                print("⚠️ ATTENTION: Firefox est installé via Snap. Cela cause souvent l'erreur 'Process unexpectedly closed'.")
+                print("💡 SOLUTION: Désinstallez la version Snap et installez la version .deb via le PPA Mozilla Team.")
+        else:
+            print("⚠️ Aucun binaire Firefox trouvé dans les chemins standards ou le PATH.")
+
         service = FirefoxService(GeckoDriverManager().install())
-        return webdriver.Firefox(service=service, options=options)
+        driver = webdriver.Firefox(service=service, options=options)
+        return driver
     except Exception as e:
         print(f"❌ Erreur critique d'initialisation du driver Firefox: {e}")
+        # Afficher plus de détails pour le d ébuggage
+        import traceback
+        traceback.print_exc()
         return None
 
 # Initialiser le driver
 driver = initialiser_driver()
 if driver is None:
     print("❌ Impossible d'initialiser le driver Firefox. Vérifiez votre installation.")
+    print("💡 Si vous êtes sur serveur Ubuntu, assurez-vous de ne PAS utiliser Snap pour Firefox.")
     sys.exit(1)
 else:
     print(f"✅ Driver Firefox initialisé avec succès (User-Agent: {options.arguments[-1]})")
