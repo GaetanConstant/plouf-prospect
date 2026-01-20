@@ -12,6 +12,7 @@ progression.txt
 progression.txt.*
 resultats/
 resultats_enrichis/
+resultats_dirigeants/
 scrapping/mots_cles.csv
 scrapping/motsclesdejafait.csv
 *.png

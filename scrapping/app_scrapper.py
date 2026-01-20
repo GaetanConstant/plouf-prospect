@@ -6,6 +6,10 @@ import sys
 import time
 from datetime import datetime
 
+# Import du module de recherche de dirigeants
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import recherche_dirigeants
+
 # --- CONFIGURATION ---
 st.set_page_config(
     page_title="Plouf Scraper",
@@ -18,8 +22,10 @@ SCRAPPING_DIR = os.path.dirname(os.path.abspath(__file__))
 MOTS_CLES_CSV = os.path.join(SCRAPPING_DIR, "mots_cles.csv")
 RESULTATS_DIR_RAW = os.path.join(SCRAPPING_DIR, "resultats")
 RESULTATS_DIR_ENRICHED = os.path.join(SCRAPPING_DIR, "resultats_enrichis")
+RESULTATS_DIR_DIRIGEANTS = os.path.join(SCRAPPING_DIR, "resultats_dirigeants")
 FICHIER_RAW = os.path.join(RESULTATS_DIR_RAW, "resultats_complets.csv")
 FICHIER_ENRICHI = os.path.join(RESULTATS_DIR_ENRICHED, "resultats_enrichis_complets.csv")
+FICHIER_DIRIGEANTS = os.path.join(RESULTATS_DIR_DIRIGEANTS, "resultats_dirigeants.csv")
 
 # Styles CSS
 st.markdown("""
@@ -54,7 +60,7 @@ with st.sidebar:
     browser_type = st.radio("Navigateur à utiliser", ["Firefox", "Chrome"], index=0)
     st.divider()
     if st.button("🧹 Effacer toutes les données"):
-        for d in [RESULTATS_DIR_RAW, RESULTATS_DIR_ENRICHED]:
+        for d in [RESULTATS_DIR_RAW, RESULTATS_DIR_ENRICHED, RESULTATS_DIR_DIRIGEANTS]:
             if os.path.exists(d):
                 import shutil
                 shutil.rmtree(d)
@@ -62,7 +68,12 @@ with st.sidebar:
         st.rerun()
 
 # --- TABS ---
-tab_launch, tab_results = st.tabs(["🚀 Lancer la Prospection", "📊 Voir les Résultats"])
+tab_launch, tab_results, tab_dirigeants, tab_consolidated = st.tabs([
+    "🚀 Lancer la Prospection", 
+    "📊 Voir les Résultats",
+    "👔 Rechercher les Dirigeants",
+    "🎯 Vue Consolidée"
+])
 
 # --- TAB 1: LAUNCH ---
 with tab_launch:
@@ -284,3 +295,316 @@ with tab_results:
                 st.write("Aucun fichier de débug trouvé.")
         else:
             st.write("Le dossier de débug n'a pas encore été créé.")
+
+# --- TAB 3: DIRIGEANTS ---
+with tab_dirigeants:
+    st.subheader("👔 Recherche des Dirigeants et Contacts")
+    st.markdown("Cette fonctionnalité utilise **4 APIs publiques** pour trouver les dirigeants de vos prospects.")
+    
+    # Vérifier si on a des données enrichies
+    if not os.path.exists(FICHIER_ENRICHI):
+        st.warning("⚠️ Aucune donnée enrichie trouvée. Veuillez d'abord :")
+        st.markdown("1. Lancer un **scraping** dans l'onglet 'Lancer la Prospection'")
+        st.markdown("2. **Enrichir** les données avec le bouton d'enrichissement")
+        st.info("Les données enrichies sont nécessaires pour extraire les dirigeants.")
+    else:
+        # Afficher un aperçu des données sources
+        df_source = pd.read_csv(FICHIER_ENRICHI)
+        st.success(f"✅ {len(df_source)} entreprises prêtes à être analysées")
+        
+        with st.expander("📋 Aperçu des données sources"):
+            st.dataframe(df_source.head(5), use_container_width=True)
+        
+        st.markdown("---")
+        
+        # Bouton de lancement
+        col_btn, col_info = st.columns([1, 2])
+        with col_btn:
+            launch_dirigeants = st.button("🚀 Lancer la recherche des dirigeants", use_container_width=True)
+        with col_info:
+            st.info("🔍 Cascade de 4 APIs : Gouv → Pappers → Annuaire → Scraping")
+        
+        # Lancement de la recherche
+        if launch_dirigeants:
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            log_area = st.empty()
+            
+            logs = []
+            
+            def progress_callback(current, total, message):
+                if total > 0:
+                    progress_bar.progress(current / total)
+                status_text.markdown(f"**{message}**")
+                logs.append(f"[{current}/{total}] {message}")
+                log_area.code("\n".join(logs[-10:]))  # Afficher les 10 derniers logs
+            
+            try:
+                start_time = time.time()
+                success = recherche_dirigeants.process_file(
+                    FICHIER_ENRICHI, 
+                    FICHIER_DIRIGEANTS, 
+                    progress_callback=progress_callback
+                )
+                
+                duration = round(time.time() - start_time, 2)
+                
+                if success:
+                    st.balloons()
+                    st.success(f"✅ Recherche terminée en {duration}s !")
+                    st.rerun()
+                else:
+                    st.error("❌ Une erreur est survenue pendant le traitement.")
+                    
+            except Exception as e:
+                st.error(f"Erreur critique : {e}")
+        
+        # Affichage des résultats si disponibles
+        if os.path.exists(FICHIER_DIRIGEANTS):
+            st.markdown("---")
+            st.subheader("📊 Résultats de la recherche")
+            
+            df_dirigeants = pd.read_csv(FICHIER_DIRIGEANTS)
+            
+            # Statistiques
+            col_stat1, col_stat2, col_stat3 = st.columns(3)
+            with col_stat1:
+                total = len(df_dirigeants)
+                st.metric("Total entreprises", total)
+            with col_stat2:
+                trouves = len(df_dirigeants[df_dirigeants['Status Recherche'] == 'Trouvé'])
+                st.metric("Dirigeants trouvés", trouves, f"{round(trouves/total*100)}%")
+            with col_stat3:
+                with_siret = len(df_dirigeants[df_dirigeants['SIRET'].notna() & (df_dirigeants['SIRET'] != '')])
+                st.metric("Avec SIRET", with_siret)
+            
+            # Filtre de recherche
+            search_dir = st.text_input("🔍 Rechercher dans les résultats", "", key="search_dirigeants")
+            if search_dir:
+                df_dirigeants = df_dirigeants[df_dirigeants.apply(
+                    lambda row: row.astype(str).str.contains(search_dir, case=False).any(), axis=1
+                )]
+            
+            # Affichage du tableau
+            st.dataframe(
+                df_dirigeants,
+                use_container_width=True,
+                height=500,
+                column_config={
+                    "Site web": st.column_config.LinkColumn(
+                        "Site Web",
+                        help="Site web de l'entreprise",
+                        display_text="🌐 Visiter"
+                    ),
+                    "Lien Pappers": st.column_config.LinkColumn(
+                        "Pappers",
+                        help="Cliquer pour voir la fiche complète sur Pappers",
+                        display_text="🔗 Voir"
+                    ),
+                    "SIRET": st.column_config.TextColumn("SIRET", help="Numéro SIRET de l'entreprise"),
+                    "Dirigeants": st.column_config.TextColumn("Dirigeants", help="Noms et fonctions des dirigeants"),
+                    "Source": st.column_config.TextColumn("Source", help="API ayant trouvé l'information")
+                }
+            )
+            
+            # Téléchargement
+            col_dl1, col_dl2, col_dl3 = st.columns(3)
+            with col_dl1:
+                csv_dirigeants = df_dirigeants.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    "📥 Télécharger CSV complet",
+                    csv_dirigeants,
+                    f"dirigeants_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                    "text/csv",
+                    use_container_width=True
+                )
+            with col_dl2:
+                # Export uniquement les trouvés
+                df_found = df_dirigeants[df_dirigeants['Status Recherche'] == 'Trouvé']
+                csv_found = df_found.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    "✅ Télécharger uniquement trouvés",
+                    csv_found,
+                    f"dirigeants_trouves_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                    "text/csv",
+                    use_container_width=True
+                )
+            with col_dl3:
+                if st.button("🗑️ Supprimer ces résultats", use_container_width=True):
+                    os.remove(FICHIER_DIRIGEANTS)
+                    st.rerun()
+
+# --- TAB 4: VUE CONSOLIDÉE ---
+with tab_consolidated:
+    st.subheader("🎯 Vue Consolidée : Prospects + Dirigeants")
+    st.markdown("Cette vue combine les **données enrichies** avec les **informations des dirigeants** pour une prospection optimale.")
+    
+    # Vérifier que les deux fichiers existent
+    has_enriched = os.path.exists(FICHIER_ENRICHI)
+    has_dirigeants = os.path.exists(FICHIER_DIRIGEANTS)
+    
+    if not has_enriched and not has_dirigeants:
+        st.warning("⚠️ Aucune donnée disponible.")
+        st.info("Veuillez d'abord :")
+        st.markdown("1. **Scraper** des entreprises (onglet 'Lancer la Prospection')")
+        st.markdown("2. **Enrichir** les données (bouton d'enrichissement)")
+        st.markdown("3. **Rechercher les dirigeants** (onglet 'Rechercher les Dirigeants')")
+    
+    elif not has_enriched:
+        st.warning("⚠️ Données enrichies manquantes. Lancez d'abord un scraping et un enrichissement.")
+    
+    elif not has_dirigeants:
+        st.warning("⚠️ Données des dirigeants manquantes.")
+        st.info("Allez dans l'onglet '👔 Rechercher les Dirigeants' pour les générer.")
+        
+        # Afficher quand même les données enrichies
+        st.markdown("---")
+        st.subheader("📊 Données enrichies disponibles")
+        df_enriched = pd.read_csv(FICHIER_ENRICHI)
+        st.dataframe(
+            df_enriched,
+            use_container_width=True,
+            column_config={
+                "Site web": st.column_config.LinkColumn("Site Web", display_text="🌐 Visiter"),
+                "Email trouvé": st.column_config.LinkColumn("Email", display_text="📧 Envoyer")
+            }
+        )
+    
+    else:
+        # Les deux fichiers existent : afficher la vue consolidée
+        df_dirigeants = pd.read_csv(FICHIER_DIRIGEANTS)
+        
+        st.success(f"✅ {len(df_dirigeants)} entreprises avec recherche de dirigeants effectuée")
+        
+        # Statistiques en haut
+        col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
+        with col_stat1:
+            total = len(df_dirigeants)
+            st.metric("Total entreprises", total)
+        with col_stat2:
+            with_email = len(df_dirigeants[df_dirigeants['Email trouvé'].notna() & (df_dirigeants['Email trouvé'] != '')])
+            st.metric("Avec Email", with_email, f"{round(with_email/total*100) if total > 0 else 0}%")
+        with col_stat3:
+            with_dirigeants = len(df_dirigeants[df_dirigeants['Status Recherche'] == 'Trouvé'])
+            st.metric("Avec Dirigeants", with_dirigeants, f"{round(with_dirigeants/total*100) if total > 0 else 0}%")
+        with col_stat4:
+            complete = len(df_dirigeants[
+                (df_dirigeants['Email trouvé'].notna() & (df_dirigeants['Email trouvé'] != '')) &
+                (df_dirigeants['Status Recherche'] == 'Trouvé')
+            ])
+            st.metric("Complets (Email + Dirigeant)", complete, f"{round(complete/total*100) if total > 0 else 0}%")
+        
+        st.markdown("---")
+        
+        # Filtres
+        col_filter1, col_filter2 = st.columns(2)
+        with col_filter1:
+            filter_option = st.selectbox(
+                "🔍 Filtrer par",
+                ["Tous", "Avec Email uniquement", "Avec Dirigeants uniquement", "Complets (Email + Dirigeants)", "Incomplets"],
+                key="filter_consolidated"
+            )
+        with col_filter2:
+            search_consolidated = st.text_input("🔎 Rechercher", "", key="search_consolidated")
+        
+        # Application des filtres
+        df_filtered = df_dirigeants.copy()
+        
+        if filter_option == "Avec Email uniquement":
+            df_filtered = df_filtered[df_filtered['Email trouvé'].notna() & (df_filtered['Email trouvé'] != '')]
+        elif filter_option == "Avec Dirigeants uniquement":
+            df_filtered = df_filtered[df_filtered['Status Recherche'] == 'Trouvé']
+        elif filter_option == "Complets (Email + Dirigeants)":
+            df_filtered = df_filtered[
+                (df_filtered['Email trouvé'].notna() & (df_filtered['Email trouvé'] != '')) &
+                (df_filtered['Status Recherche'] == 'Trouvé')
+            ]
+        elif filter_option == "Incomplets":
+            df_filtered = df_filtered[
+                (df_filtered['Email trouvé'].isna() | (df_filtered['Email trouvé'] == '')) |
+                (df_filtered['Status Recherche'] != 'Trouvé')
+            ]
+        
+        if search_consolidated:
+            df_filtered = df_filtered[df_filtered.apply(
+                lambda row: row.astype(str).str.contains(search_consolidated, case=False).any(), axis=1
+            )]
+        
+        st.info(f"📊 Affichage de **{len(df_filtered)}** entreprises sur {total}")
+        
+        # Affichage du tableau consolidé
+        st.dataframe(
+            df_filtered,
+            use_container_width=True,
+            height=600,
+            column_config={
+                "Site web": st.column_config.LinkColumn(
+                    "Site Web",
+                    help="Site web de l'entreprise",
+                    display_text="🌐 Visiter"
+                ),
+                "Email trouvé": st.column_config.LinkColumn(
+                    "Email",
+                    help="Email de contact",
+                    display_text="📧 Envoyer"
+                ),
+                "Lien Pappers": st.column_config.LinkColumn(
+                    "Pappers",
+                    help="Fiche Pappers avec dirigeants",
+                    display_text="🔗 Voir"
+                ),
+                "Téléphone": st.column_config.TextColumn("Téléphone", help="Téléphone principal"),
+                "Dirigeants": st.column_config.TextColumn("Dirigeants", help="Noms et fonctions"),
+                "SIRET": st.column_config.TextColumn("SIRET", help="Numéro SIRET"),
+                "Source": st.column_config.TextColumn("Source API", help="Source des infos dirigeants")
+            }
+        )
+        
+        # Export
+        st.markdown("---")
+        col_export1, col_export2, col_export3 = st.columns(3)
+        
+        with col_export1:
+            csv_all = df_filtered.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                "📥 Télécharger la sélection",
+                csv_all,
+                f"prospects_consolides_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                "text/csv",
+                use_container_width=True
+            )
+        
+        with col_export2:
+            df_complete = df_dirigeants[
+                (df_dirigeants['Email trouvé'].notna() & (df_dirigeants['Email trouvé'] != '')) &
+                (df_dirigeants['Status Recherche'] == 'Trouvé')
+            ]
+            csv_complete = df_complete.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                "⭐ Télécharger les complets",
+                csv_complete,
+                f"prospects_complets_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                "text/csv",
+                use_container_width=True,
+                help=f"{len(df_complete)} entreprises avec Email ET Dirigeants"
+            )
+        
+        with col_export3:
+            # Créer un fichier optimisé pour la prospection (colonnes essentielles)
+            df_prospect = df_filtered[[
+                'Nom', 'Téléphone', 'Email trouvé', 'Site web', 
+                'Adresse', 'SIRET', 'Dirigeants', 'Lien Pappers'
+            ]].copy()
+            df_prospect.columns = [
+                'Entreprise', 'Téléphone', 'Email', 'Site Web',
+                'Adresse', 'SIRET', 'Dirigeants', 'Lien Pappers'
+            ]
+            csv_prospect = df_prospect.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                "🎯 Export Prospection",
+                csv_prospect,
+                f"export_prospection_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                "text/csv",
+                use_container_width=True,
+                help="Fichier optimisé avec colonnes essentielles"
+            )

@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Streamlit
+.streamlit/
+
+# Données de scraping (à ne pas committer)
+resultats/
+resultats_enrichis/
+resultats_dirigeants/
+mots_cles.csv
+motsclesdejafait.csv
+test_scraping.csv
+
+# Debug
+debug/
+*.log
+/tmp/
+
+# OS
+.DS_Store
+Thumbs.db
