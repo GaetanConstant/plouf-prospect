@@ -88,8 +88,8 @@ def get_gmb_phone(driver, query):
                 if elements:
                     tel = elements[0].get_attribute("aria-label") or elements[0].text
                     if tel:
-                        # Nettoyer "Appeler le 01 23 45 67 89"
-                        tel = tel.replace("Appeler le ", "").replace("Appeler ", "").strip()
+                        # Nettoyer le numéro (enlever "Appeler le ", "Numéro de téléphone: ", etc.)
+                        tel = tel.replace("Appeler le ", "").replace("Appeler ", "").replace("Numéro de téléphone: ", "").replace("Numero de telephone: ", "").strip()
                         return tel
         except:
             pass
@@ -106,7 +106,7 @@ def get_gmb_phone(driver, query):
                     if elements:
                         tel = elements[0].get_attribute("aria-label") or elements[0].text
                         if tel:
-                            tel = tel.replace("Appeler le ", "").replace("Appeler ", "").strip()
+                            tel = tel.replace("Appeler le ", "").replace("Appeler ", "").replace("Numéro de téléphone: ", "").replace("Numero de telephone: ", "").strip()
                             return tel
         except:
             pass
@@ -115,6 +115,12 @@ def get_gmb_phone(driver, query):
         print(f"⚠️ Erreur lors de la recherche pour '{query}' : {e}")
     
     return ""
+    
+def sauvegarder_resultats(file_path, fieldnames, rows):
+    with open(file_path, 'w', encoding='utf-8', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
 
 def main():
     if not os.path.exists(INPUT_FILE):
@@ -170,19 +176,16 @@ def main():
                 print(f"  ❌ Pas de téléphone trouvé.")
             
             count += 1
+            # Sauvegarde incrémentale
+            sauvegarder_resultats(OUTPUT_FILE, fieldnames, rows)
+            
             # Petite pause pour éviter le blocage
             time.sleep(random.uniform(1, 2))
             
     finally:
         driver.quit()
 
-    # Sauvegarder les résultats
-    with open(OUTPUT_FILE, 'w', encoding='utf-8', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(rows)
-    
-    print(f"💾 Résultats sauvegardés dans : {OUTPUT_FILE}")
+    print(f"💾 Fin de l'enrichissement. Résultats finaux dans : {OUTPUT_FILE}")
 
 if __name__ == "__main__":
     main()
