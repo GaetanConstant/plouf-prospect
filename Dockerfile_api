@@ -1,0 +1,40 @@
+FROM python:3.11-slim
+
+# Éviter les fichiers .pyc et activer les logs en temps réel
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Installation de Firefox, GeckoDriver et des dépendances pour Selenium
+RUN apt-get update && apt-get install -y \
+    firefox-esr \
+    wget \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Installation de GeckoDriver
+RUN GECKO_VERSION=$(curl -s https://api.github.com/repos/mozilla/geckodriver/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/') \
+    && wget https://github.com/mozilla/geckodriver/releases/download/$GECKO_VERSION/geckodriver-$GECKO_VERSION-linux64.tar.gz \
+    && tar -xzf geckodriver-$GECKO_VERSION-linux64.tar.gz \
+    && mv geckodriver /usr/local/bin/ \
+    && rm geckodriver-$GECKO_VERSION-linux64.tar.gz
+
+WORKDIR /app
+
+# Copie des dépendances
+COPY requirements.txt .
+COPY scrapping/requirements.txt ./scrapping_requirements.txt
+
+# Installation de toutes les dépendances Python
+RUN pip install --no-cache-dir -r requirements.txt -r scrapping_requirements.txt
+
+# Copie de l'intégralité du projet
+COPY . .
+
+# Configuration pour que Selenium trouve Firefox
+ENV FIREFOX_BIN=/usr/bin/firefox
+
+# Port par défaut (Render injectera sa propre valeur via $PORT)
+EXPOSE 8000
+
+# Commande pour lancer l'API
+CMD uvicorn api.main:app --host 0.0.0.0 --port $PORT

@@ -20,29 +20,51 @@ WAIT_TIME = 2
 
 # === Selenium Setup ===
 def initialiser_driver():
-    options = ChromeOptions()
-    if MODE_HEADLESS:
-        options.add_argument("--headless=new")
-    
-    options.add_argument("--disable-gpu")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--disable-blink-features=AutomationControlled")
-    
-    user_agents = [
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
-    ]
-    options.add_argument(f"--user-agent={random.choice(user_agents)}")
-    
+    # 1. Tentative avec Chrome
     try:
+        from selenium.webdriver.chrome.options import Options as ChromeOptions
+        from selenium.webdriver.chrome.service import Service as ChromeService
         from webdriver_manager.chrome import ChromeDriverManager
+        
+        chrome_options = ChromeOptions()
+        if MODE_HEADLESS:
+            chrome_options.add_argument("--headless=new")
+        chrome_options.add_argument("--disable-gpu")
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+        
+        user_agents = [
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
+        ]
+        chrome_options.add_argument(f"--user-agent={random.choice(user_agents)}")
+        
+        print("🌐 Tentative d'initialisation de Chrome...")
         service = ChromeService(ChromeDriverManager().install())
-        driver = webdriver.Chrome(service=service, options=options)
+        driver = webdriver.Chrome(service=service, options=chrome_options)
         return driver
     except Exception as e:
-        print(f"❌ Erreur lors de l'initialisation du driver : {e}")
-        return None
+        print(f"⚠️ Chrome non disponible ou erreur : {e}")
+
+    # 2. Tentative avec Firefox
+    try:
+        from selenium.webdriver.firefox.options import Options as FirefoxOptions
+        from selenium.webdriver.firefox.service import Service as FirefoxService
+        from webdriver_manager.firefox import GeckoDriverManager
+        
+        firefox_options = FirefoxOptions()
+        if MODE_HEADLESS:
+            firefox_options.add_argument("-headless")
+        
+        print("🦊 Tentative d'initialisation de Firefox...")
+        service = FirefoxService(GeckoDriverManager().install())
+        driver = webdriver.Firefox(service=service, options=firefox_options)
+        return driver
+    except Exception as e:
+        print(f"❌ Firefox non disponible ou erreur : {e}")
+        
+    return None
 
 def handle_cookie_consent(driver):
     try:

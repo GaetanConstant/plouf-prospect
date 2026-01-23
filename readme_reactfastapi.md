@@ -38,9 +38,9 @@ L'interface utilisateur pour piloter les recherches.
 2. **Lancement du Frontend :**
    Depuis le dossier `front/` :
    ```bash
-   npm run dev
+   npm start
    ```
-   *L'application sera accessible sur [http://localhost:5173](http://localhost:5173).*
+   *L'application sera accessible sur [http://localhost:3000](http://localhost:3000).*
 
 ---
 

@@ -52,113 +52,89 @@ if not os.path.exists(DEBUG_DIR):
 if not os.path.exists(RESULTATS_DIR):
     os.makedirs(RESULTATS_DIR)
 
-# === Selenium Setup (Firefox) ===
-options = FirefoxOptions()
-
-if MODE_HEADLESS:
-    options.add_argument("--headless")
-    print("✅ Mode headless activé : Firefox s'exécutera en arrière-plan")
-else:
-    print("⚠️ Mode headless désactivé : Firefox sera visible")
-
-# Options Firefox spécifiques
-options.set_preference("dom.webdriver.enabled", False)
-options.set_preference("useAutomationExtension", False)
-options.set_preference("permissions.default.image", 2)  # Désactive les images pour accélérer
-
-# Taille de la fenêtre indispensable pour le mode headless sur serveur
-options.add_argument("--width=1920")
-options.add_argument("--height=1080")
-# Nettoyage des options Chrome inutiles pour Firefox
-options.add_argument("--disable-gpu")
-
-# Liste de user agents Firefox RÉALISTES (obligatoire pour Firefox)
-user_agents = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 14.1; rv:120.0) Gecko/20100101 Firefox/120.0",
-    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0"
-]
-
-# Utiliser un user agent aléatoire
-import random
-options.add_argument(f"--user-agent={random.choice(user_agents)}")
-
-# Fonction pour initialiser le driver avec de nouvelles options
+# === Selenium Setup ===
 def initialiser_driver():
+    # 1. Tentative avec Firefox (original)
     try:
+        from selenium.webdriver.firefox.options import Options as FirefoxOptions
+        from selenium.webdriver.firefox.service import Service as FirefoxService
         from webdriver_manager.firefox import GeckoDriverManager
         
-        # Tenter de détecter l'emplacement du binaire Firefox
+        firefox_options = FirefoxOptions()
+        if MODE_HEADLESS:
+            firefox_options.add_argument("--headless")
+        
+        firefox_options.set_preference("dom.webdriver.enabled", False)
+        firefox_options.set_preference("useAutomationExtension", False)
+        firefox_options.set_preference("permissions.default.image", 2)
+        firefox_options.add_argument("--width=1920")
+        firefox_options.add_argument("--height=1080")
+        firefox_options.add_argument("--disable-gpu")
+        
+        user_agents = [
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 14.1; rv:120.0) Gecko/20100101 Firefox/120.0"
+        ]
+        import random
+        firefox_options.add_argument(f"--user-agent={random.choice(user_agents)}")
+        
+        # Détection binaire Firefox
         binary_loc = os.environ.get("FIREFOX_BIN")
         if not binary_loc:
-            # Chemins standards (priorité au binaire direct dans /usr/lib)
-            possible_paths = [
-                "/usr/lib/firefox/firefox",  # Binaire réel (Ubuntu PPA)
-                "/usr/bin/firefox",          # Souvent un lien symbolique ou un script
-                "/usr/local/bin/firefox",
-                "/snap/bin/firefox"
-            ]
+            possible_paths = ["/usr/lib/firefox/firefox", "/usr/bin/firefox", "/usr/local/bin/firefox"]
             for path in possible_paths:
                 if os.path.exists(path):
                     binary_loc = path
                     break
-        
-        # Si toujours pas trouvé, utiliser shutil.which
         if not binary_loc:
             binary_loc = shutil.which("firefox")
-            
         if binary_loc:
-            print(f"🔎 Chemin brut détecté : {binary_loc}")
-            
-            # Résoudre les liens symboliques
-            if os.path.islink(binary_loc):
-                real_path = os.path.realpath(binary_loc)
-                print(f"🔗 Lien symbolique résolu : {binary_loc} -> {real_path}")
-                binary_loc = real_path
-                
-            print(f"ℹ️ Binaire Firefox utilisé : {binary_loc}")
-            
-            # Vérifier si c'est exécutable
-            if not os.access(binary_loc, os.X_OK):
-                print("⚠️ ATTENTION: Ce fichier ne semble pas être exécutable !")
+            firefox_options.binary_location = binary_loc
 
-            # Vérifier si c'est un script shell (ce qui fait planter Geckodriver)
-            try:
-                with open(binary_loc, 'rb') as f:
-                    header = f.read(2)
-                if header == b'#!':
-                    print(f"⚠️ PROBLÈME DÉTECTÉ: '{binary_loc}' est un script (wrapper), pas le vrai binaire !")
-                    print("Cela cause l'erreur 'binary is not a Firefox executable'.")
-                    print("Si vous avez installé Firefox via apt sur Ubuntu, le vrai binaire est souvent ailleurs.")
-                    print("Essayez de chercher dans /usr/lib/firefox/firefox")
-            except Exception as e:
-                print(f"⚠️ Impossible de lire l'en-tête du fichier: {e}")
-                
-            options.binary_location = binary_loc
-            if "snap" in binary_loc:
-                print("⚠️ ATTENTION: Firefox est installé via Snap. Cela cause souvent l'erreur 'Process unexpectedly closed'.")
-                print("💡 SOLUTION: Désinstallez la version Snap et installez la version .deb via le PPA Mozilla Team.")
-        else:
-            print("⚠️ Aucun binaire Firefox trouvé dans les chemins standards ou le PATH.")
-
+        print("🦊 Tentative d'initialisation de Firefox...")
         service = FirefoxService(GeckoDriverManager().install())
-        driver = webdriver.Firefox(service=service, options=options)
+        driver = webdriver.Firefox(service=service, options=firefox_options)
         return driver
     except Exception as e:
-        print(f"❌ Erreur critique d'initialisation du driver Firefox: {e}")
-        # Afficher plus de détails pour le d ébuggage
-        import traceback
-        traceback.print_exc()
-        return None
+        print(f"⚠️ Firefox non disponible ou erreur : {e}")
+
+    # 2. Tentative avec Chrome (fallback)
+    try:
+        from selenium.webdriver.chrome.options import Options as ChromeOptions
+        from selenium.webdriver.chrome.service import Service as ChromeService
+        from webdriver_manager.chrome import ChromeDriverManager
+        
+        chrome_options = ChromeOptions()
+        if MODE_HEADLESS:
+            chrome_options.add_argument("--headless=new")
+        chrome_options.add_argument("--disable-gpu")
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+        
+        user_agents = [
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36"
+        ]
+        import random
+        chrome_options.add_argument(f"--user-agent={random.choice(user_agents)}")
+        
+        print("🌐 Tentative d'initialisation de Chrome...")
+        service = ChromeService(ChromeDriverManager().install())
+        driver = webdriver.Chrome(service=service, options=chrome_options)
+        return driver
+    except Exception as e:
+        print(f"❌ Chrome non disponible ou erreur : {e}")
+        
+    return None
 
 # Initialiser le driver
 driver = initialiser_driver()
 if driver is None:
-    print("❌ Impossible d'initialiser le driver Firefox. Vérifiez votre installation.")
+    print("❌ Impossible d'initialiser le driver. Vérifiez votre installation de Firefox ou Chrome.")
     print("💡 Si vous êtes sur serveur Ubuntu, assurez-vous de ne PAS utiliser Snap pour Firefox.")
     sys.exit(1)
 else:
-    print(f"✅ Driver Firefox initialisé avec succès (User-Agent: {options.arguments[-1]})")
+    print("✅ Driver initialisé avec succès")
 
 # Fonction pour gérer les consentements de cookies (uniquement sur la page principale)
 def handle_cookie_consent():
