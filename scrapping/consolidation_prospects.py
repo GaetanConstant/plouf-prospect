@@ -142,17 +142,51 @@ def main():
             prospects.append(prospect)
 
     # Sauvegarde
-    if prospects:
+    # Sauvegarde avec ajout (INSERT) sans doublons
+    existing_keys = set()
+    file_exists = os.path.exists(OUTPUT_FILE)
+
+    # 1. Charger les clés existantes pour dédoublonnage (SIRET ou Nom)
+    if file_exists:
+        try:
+            with open(OUTPUT_FILE, 'r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    key = row.get('SIRET') or row.get('Nom Entreprise')
+                    if key:
+                        existing_keys.add(key)
+        except Exception as e:
+            print(f"⚠️ Erreur lors de la lecture du fichier existant : {e}")
+
+    # 2. Filtrer et ajouter les nouveaux prospects
+    new_prospects = []
+    for p in prospects:
+        key = p.get('SIRET') or p.get('Nom Entreprise')
+        if key and key in existing_keys:
+            continue # Déjà présent
+        new_prospects.append(p)
+        if key:
+            existing_keys.add(key)
+
+    if new_prospects:
         fieldnames = list(prospects[0].keys())
-        with open(OUTPUT_FILE, 'w', encoding='utf-8', newline='') as f:
+        
+        # Vérification des headers si le fichier existe déjà
+        # (Pour éviter des incohérences si les colonnes changent, mais on suppose ici que la structure est stable)
+        
+        mode = 'a' if file_exists else 'w'
+        with open(OUTPUT_FILE, mode, encoding='utf-8', newline='') as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(prospects)
             
-        print(f"✅ Consolidation terminée ! {len(prospects)} prospects exportés.")
+            if not file_exists:
+                writer.writeheader()
+            
+            writer.writerows(new_prospects)
+            
+        print(f"✅ Consolidation terminée ! {len(new_prospects)} nouveaux prospects ajoutés.")
         print(f"💾 Fichier final : {OUTPUT_FILE}")
     else:
-        print("⚠️ Aucun prospect à exporter.")
+        print("⚠️ Aucun nouveau prospect à ajouter (tous déjà présents ou liste vide).")
 
 if __name__ == "__main__":
     main()
