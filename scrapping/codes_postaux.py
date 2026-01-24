@@ -116,7 +116,7 @@ def export_queries(cp_csv: Path, keywords: list[str], out_csv: Path) -> int:
 # CLI
 # -----------------------------
 def main():
-    base_dir = Path("resultats_codepostaux")
+    base_dir = Path(__file__).parent / "resultats_codepostaux"
     base_dir.mkdir(parents=True, exist_ok=True)
 
     ap = argparse.ArgumentParser(
