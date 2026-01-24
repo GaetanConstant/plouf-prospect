@@ -69,8 +69,8 @@ def run_workflow(queries: List[str], max_fiches: int = 5):
     df_queries = pd.DataFrame({"mot_cle": queries})
     df_queries.to_csv(MOTS_CLES_CSV, index=False)
     
-    # 2. Nettoyer les anciens fichiers
-    for f in [FICHIER_RAW, FICHIER_ENRICHI, FICHIER_DIRIGEANTS, FICHIER_GMB, FICHIER_WHOIS, FICHIER_CONSOLIDE]:
+    # 2. Nettoyer les anciens fichiers intermédiaires (Garder le consolidé !)
+    for f in [FICHIER_RAW, FICHIER_ENRICHI, FICHIER_DIRIGEANTS, FICHIER_GMB, FICHIER_WHOIS]:
         if os.path.exists(f):
             try:
                 os.remove(f)

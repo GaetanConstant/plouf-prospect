@@ -437,174 +437,167 @@ with tab_dirigeants:
 # --- TAB 4: VUE CONSOLIDÉE ---
 with tab_consolidated:
     st.subheader("🎯 Vue Consolidée : Prospects + Dirigeants")
-    st.markdown("Cette vue combine les **données enrichies** avec les **informations des dirigeants** pour une prospection optimale.")
+    st.markdown("Cette vue affiche la **base de données consolidée** (historique complet).")
     
-    # Vérifier que les deux fichiers existent
-    has_enriched = os.path.exists(FICHIER_ENRICHI)
-    has_dirigeants = os.path.exists(FICHIER_DIRIGEANTS)
-    
-    if not has_enriched and not has_dirigeants:
-        st.warning("⚠️ Aucune donnée disponible.")
-        st.info("Veuillez d'abord :")
-        st.markdown("1. **Scraper** des entreprises (onglet 'Lancer la Prospection')")
-        st.markdown("2. **Enrichir** les données (bouton d'enrichissement)")
-        st.markdown("3. **Rechercher les dirigeants** (onglet 'Rechercher les Dirigeants')")
-    
-    elif not has_enriched:
-        st.warning("⚠️ Données enrichies manquantes. Lancez d'abord un scraping et un enrichissement.")
-    
-    elif not has_dirigeants:
-        st.warning("⚠️ Données des dirigeants manquantes.")
-        st.info("Allez dans l'onglet '👔 Rechercher les Dirigeants' pour les générer.")
-        
-        # Afficher quand même les données enrichies
-        st.markdown("---")
-        st.subheader("📊 Données enrichies disponibles")
-        df_enriched = pd.read_csv(FICHIER_ENRICHI)
-        st.dataframe(
-            df_enriched,
-            use_container_width=True,
-            column_config={
-                "Site web": st.column_config.LinkColumn("Site Web", display_text="🌐 Visiter"),
-                "Email trouvé": st.column_config.LinkColumn("Email", display_text="📧 Envoyer")
-            }
-        )
-    
+    FICHIER_CONSOLIDE = os.path.join(SCRAPPING_DIR, "resultats_consolides", "base_prospects_finale.csv")
+    SCRIPT_CONSOLIDATION = os.path.join(SCRAPPING_DIR, "consolidation_prospects.py")
+
+    col_action, col_status = st.columns([1, 2])
+    with col_action:
+        if st.button("🔄 Mettre à jour la consolidation"):
+             with st.spinner("Consolidation en cours..."):
+                try:
+                    process = subprocess.run(
+                        ["uv", "run", "python", SCRIPT_CONSOLIDATION],
+                        cwd=SCRAPPING_DIR,
+                        capture_output=True,
+                        text=True
+                    )
+                    if process.returncode == 0:
+                        st.success("Consolidation terminée !")
+                        st.code(process.stdout)
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error("Erreur lors de la consolidation")
+                        st.code(process.stderr)
+                except Exception as e:
+                    st.error(f"Erreur : {e}")
+
+    # Vérifier si le fichier consolidé existe
+    if not os.path.exists(FICHIER_CONSOLIDE):
+        st.warning("⚠️ Aucune base consolidée trouvée. Veuillez lancer la consolidation.")
     else:
-        # Les deux fichiers existent : afficher la vue consolidée
-        df_dirigeants = pd.read_csv(FICHIER_DIRIGEANTS)
-        
-        st.success(f"✅ {len(df_dirigeants)} entreprises avec recherche de dirigeants effectuée")
-        
-        # Statistiques en haut
-        col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
-        with col_stat1:
-            total = len(df_dirigeants)
-            st.metric("Total entreprises", total)
-        with col_stat2:
-            with_email = len(df_dirigeants[df_dirigeants['Email trouvé'].notna() & (df_dirigeants['Email trouvé'] != '')])
-            st.metric("Avec Email", with_email, f"{round(with_email/total*100) if total > 0 else 0}%")
-        with col_stat3:
-            with_dirigeants = len(df_dirigeants[df_dirigeants['Status Recherche'] == 'Trouvé'])
-            st.metric("Avec Dirigeants", with_dirigeants, f"{round(with_dirigeants/total*100) if total > 0 else 0}%")
-        with col_stat4:
-            complete = len(df_dirigeants[
-                (df_dirigeants['Email trouvé'].notna() & (df_dirigeants['Email trouvé'] != '')) &
-                (df_dirigeants['Status Recherche'] == 'Trouvé')
-            ])
-            st.metric("Complets (Email + Dirigeant)", complete, f"{round(complete/total*100) if total > 0 else 0}%")
-        
-        st.markdown("---")
-        
-        # Filtres
-        col_filter1, col_filter2 = st.columns(2)
-        with col_filter1:
-            filter_option = st.selectbox(
-                "🔍 Filtrer par",
-                ["Tous", "Avec Email uniquement", "Avec Dirigeants uniquement", "Complets (Email + Dirigeants)", "Incomplets"],
-                key="filter_consolidated"
-            )
-        with col_filter2:
-            search_consolidated = st.text_input("🔎 Rechercher", "", key="search_consolidated")
-        
-        # Application des filtres
-        df_filtered = df_dirigeants.copy()
-        
-        if filter_option == "Avec Email uniquement":
-            df_filtered = df_filtered[df_filtered['Email trouvé'].notna() & (df_filtered['Email trouvé'] != '')]
-        elif filter_option == "Avec Dirigeants uniquement":
-            df_filtered = df_filtered[df_filtered['Status Recherche'] == 'Trouvé']
-        elif filter_option == "Complets (Email + Dirigeants)":
-            df_filtered = df_filtered[
-                (df_filtered['Email trouvé'].notna() & (df_filtered['Email trouvé'] != '')) &
-                (df_filtered['Status Recherche'] == 'Trouvé')
-            ]
-        elif filter_option == "Incomplets":
-            df_filtered = df_filtered[
-                (df_filtered['Email trouvé'].isna() | (df_filtered['Email trouvé'] == '')) |
-                (df_filtered['Status Recherche'] != 'Trouvé')
-            ]
-        
-        if search_consolidated:
-            df_filtered = df_filtered[df_filtered.apply(
-                lambda row: row.astype(str).str.contains(search_consolidated, case=False).any(), axis=1
-            )]
-        
-        st.info(f"📊 Affichage de **{len(df_filtered)}** entreprises sur {total}")
-        
-        # Affichage du tableau consolidé
-        st.dataframe(
-            df_filtered,
-            use_container_width=True,
-            height=600,
-            column_config={
-                "Site web": st.column_config.LinkColumn(
-                    "Site Web",
-                    help="Site web de l'entreprise",
-                    display_text="🌐 Visiter"
-                ),
-                "Email trouvé": st.column_config.LinkColumn(
-                    "Email",
-                    help="Email de contact",
-                    display_text="📧 Envoyer"
-                ),
-                "Lien Pappers": st.column_config.LinkColumn(
-                    "Pappers",
-                    help="Fiche Pappers avec dirigeants",
-                    display_text="🔗 Voir"
-                ),
-                "Téléphone": st.column_config.TextColumn("Téléphone", help="Téléphone principal"),
-                "Dirigeants": st.column_config.TextColumn("Dirigeants", help="Noms et fonctions"),
-                "SIRET": st.column_config.TextColumn("SIRET", help="Numéro SIRET"),
-                "Source": st.column_config.TextColumn("Source API", help="Source des infos dirigeants")
+        try:
+            df_consolide = pd.read_csv(FICHIER_CONSOLIDE)
+            
+            # Mapping des colonnes pour correspondre à l'affichage habituel
+            # Base: Nom Entreprise,Activité,Dirigeant,Email,Téléphone,Téléphone Secondaire,Site Web,Adresse,Code Postal,Ville,SIRET,Date Création,Lien Pappers
+            column_mapping = {
+                "Nom Entreprise": "Nom",
+                "Email": "Email trouvé",
+                "Dirigeant": "Dirigeants",
+                "Site Web": "Site web"
             }
-        )
-        
-        # Export
-        st.markdown("---")
-        col_export1, col_export2, col_export3 = st.columns(3)
-        
-        with col_export1:
-            csv_all = df_filtered.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                "📥 Télécharger la sélection",
-                csv_all,
-                f"prospects_consolides_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                "text/csv",
-                use_container_width=True
-            )
-        
-        with col_export2:
-            df_complete = df_dirigeants[
-                (df_dirigeants['Email trouvé'].notna() & (df_dirigeants['Email trouvé'] != '')) &
-                (df_dirigeants['Status Recherche'] == 'Trouvé')
-            ]
-            csv_complete = df_complete.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                "⭐ Télécharger les complets",
-                csv_complete,
-                f"prospects_complets_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                "text/csv",
+            df_display = df_consolide.rename(columns=column_mapping)
+            
+            # Ajout colonnes manquantes pour éviter erreurs si absentes
+            for col in ["SIRET", "Lien Pappers", "Téléphone"]:
+                if col not in df_display.columns:
+                    df_display[col] = ""
+
+            st.success(f"✅ {len(df_display)} prospects dans la base historique")
+            
+            # Statistiques en haut
+            col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
+            with col_stat1:
+                total = len(df_display)
+                st.metric("Total Prospects", total)
+            with col_stat2:
+                with_email = len(df_display[df_display['Email trouvé'].notna() & (df_display['Email trouvé'] != '')])
+                st.metric("Avec Email", with_email, f"{round(with_email/total*100) if total > 0 else 0}%")
+            with col_stat3:
+                # On considère qu'un dirigeant est 'trouvé' s'il y a du texte dans la colonne
+                with_dirigeants = len(df_display[df_display['Dirigeants'].notna() & (df_display['Dirigeants'] != '') & (df_display['Dirigeants'] != 'Non listé')])
+                st.metric("Avec Dirigeants", with_dirigeants, f"{round(with_dirigeants/total*100) if total > 0 else 0}%")
+            with col_stat4:
+                complete = len(df_display[
+                    (df_display['Email trouvé'].notna() & (df_display['Email trouvé'] != '')) &
+                    (df_display['Dirigeants'].notna() & (df_display['Dirigeants'] != ''))
+                ])
+                st.metric("Complets", complete, f"{round(complete/total*100) if total > 0 else 0}%")
+            
+            st.markdown("---")
+            
+            # Filtres
+            col_filter1, col_filter2 = st.columns(2)
+            with col_filter1:
+                filter_option = st.selectbox(
+                    "🔍 Filtrer par",
+                    ["Tous", "Avec Email uniquement", "Avec Dirigeants uniquement", "Complets (Email + Dirigeants)", "Incomplets"],
+                    key="filter_consolidated_base"
+                )
+            with col_filter2:
+                search_consolidated = st.text_input("🔎 Rechercher", "", key="search_consolidated_base")
+            
+            # Application des filtres
+            df_filtered = df_display.copy()
+            
+            if filter_option == "Avec Email uniquement":
+                df_filtered = df_filtered[df_filtered['Email trouvé'].notna() & (df_filtered['Email trouvé'] != '')]
+            elif filter_option == "Avec Dirigeants uniquement":
+                df_filtered = df_filtered[df_filtered['Dirigeants'].notna() & (df_filtered['Dirigeants'] != '')]
+            elif filter_option == "Complets (Email + Dirigeants)":
+                df_filtered = df_filtered[
+                    (df_filtered['Email trouvé'].notna() & (df_filtered['Email trouvé'] != '')) &
+                    (df_filtered['Dirigeants'].notna() & (df_filtered['Dirigeants'] != ''))
+                ]
+            elif filter_option == "Incomplets":
+                 df_filtered = df_filtered[
+                    (df_filtered['Email trouvé'].isna() | (df_filtered['Email trouvé'] == '')) |
+                    (df_filtered['Dirigeants'].isna() | (df_filtered['Dirigeants'] == ''))
+                ]
+            
+            if search_consolidated:
+                df_filtered = df_filtered[df_filtered.apply(
+                    lambda row: row.astype(str).str.contains(search_consolidated, case=False).any(), axis=1
+                )]
+            
+            st.info(f"📊 Affichage de **{len(df_filtered)}** prospects sur {total}")
+            
+            # Affichage du tableau consolidé
+            st.dataframe(
+                df_filtered,
                 use_container_width=True,
-                help=f"{len(df_complete)} entreprises avec Email ET Dirigeants"
+                height=600,
+                column_config={
+                    "Site web": st.column_config.LinkColumn(
+                        "Site Web",
+                        display_text="🌐 Visiter"
+                    ),
+                    "Email trouvé": st.column_config.LinkColumn(
+                        "Email",
+                        display_text="📧 Envoyer"
+                    ),
+                    "Lien Pappers": st.column_config.LinkColumn(
+                        "Pappers",
+                        display_text="🔗 Voir"
+                    ),
+                    "Téléphone": st.column_config.TextColumn("Téléphone"),
+                    "Dirigeants": st.column_config.TextColumn("Dirigeants"),
+                    "SIRET": st.column_config.TextColumn("SIRET")
+                }
             )
-        
-        with col_export3:
-            # Créer un fichier optimisé pour la prospection (colonnes essentielles)
-            df_prospect = df_filtered[[
-                'Nom', 'Téléphone', 'Email trouvé', 'Site web', 
-                'Adresse', 'SIRET', 'Dirigeants', 'Lien Pappers'
-            ]].copy()
-            df_prospect.columns = [
-                'Entreprise', 'Téléphone', 'Email', 'Site Web',
-                'Adresse', 'SIRET', 'Dirigeants', 'Lien Pappers'
-            ]
-            csv_prospect = df_prospect.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                "🎯 Export Prospection",
-                csv_prospect,
-                f"export_prospection_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                "text/csv",
-                use_container_width=True,
-                help="Fichier optimisé avec colonnes essentielles"
-            )
+            
+            # Export
+            st.markdown("---")
+            col_export1, col_export2 = st.columns(2)
+            
+            with col_export1:
+                csv_all = df_filtered.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    "📥 Télécharger la sélection",
+                    csv_all,
+                    f"prospects_base_finale_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                    "text/csv",
+                    use_container_width=True
+                )
+            
+            with col_export2:
+                # Créer un fichier optimisé pour la prospection
+                cols_voulues = ['Nom', 'Téléphone', 'Email trouvé', 'Site web', 'Adresse', 'SIRET', 'Dirigeants', 'Lien Pappers', 'Activité', 'Ville']
+                # Garder seulement celles qui existent
+                cols_presentes = [c for c in cols_voulues if c in df_filtered.columns]
+                
+                df_prospect = df_filtered[cols_presentes].copy()
+                csv_prospect = df_prospect.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    "🎯 Export Prospection Optimisé",
+                    csv_prospect,
+                    f"export_prospection_final_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                    "text/csv",
+                    use_container_width=True
+                )
+
+        except Exception as e:
+            st.error(f"Erreur de lecture du fichier consolidé : {e}")
