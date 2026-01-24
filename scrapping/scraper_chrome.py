@@ -415,6 +415,13 @@ with open(FICHIER_RESULTAT, 'a' if fichier_existe else 'w', newline='', encoding
                         site_elements = driver.find_elements(By.XPATH, '//a[contains(@data-item-id, "authority")]')
                         if site_elements:
                             site = site_elements[0].get_attribute("href")
+                            if site:
+                                try:
+                                    parsed = urllib.parse.urlparse(site)
+                                    if parsed.netloc:
+                                        site = f"{parsed.scheme}://{parsed.netloc}/"
+                                except:
+                                    pass
                     except:
                         pass
                     
