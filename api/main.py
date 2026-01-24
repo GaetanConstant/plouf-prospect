@@ -59,9 +59,9 @@ for d in [RESULTATS_DIR_RAW, RESULTATS_DIR_ENRICHED, RESULTATS_DIR_DIRIGEANTS, R
 class ProcessRequest(BaseModel):
     keyword: str
     zipcode: str
-    max_fiches: Optional[int] = 20
+    max_fiches: Optional[int] = 5
 
-def run_workflow(queries: List[str], max_fiches: int = 20):
+def run_workflow(queries: List[str], max_fiches: int = 5):
     """
     Exécute le workflow complet : Scraping -> Web -> Dirigeants -> GMB -> Whois -> Consolidation
     """
@@ -176,7 +176,7 @@ async def process_single(request: ProcessRequest):
 @app.post("/process_csv")
 async def process_batch(
     file: UploadFile = File(...), 
-    max_fiches: int = Form(20)
+    max_fiches: int = Form(5)
 ):
     if not file.filename.endswith('.csv'):
         raise HTTPException(status_code=400, detail="Seuls les fichiers CSV sont acceptés.")
