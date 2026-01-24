@@ -28,6 +28,7 @@ resultats/
 resultats_enrichis/
 resultats_dirigeants/
 resultats_consolides/
+resultats_codepostaux/
 mots_cles.csv
 motsclesdejafait.csv
 test_scraping.csv
