@@ -43,13 +43,17 @@ RESULTATS_DIR_RAW = os.path.join(SCRAPPING_DIR, "resultats")
 RESULTATS_DIR_ENRICHED = os.path.join(SCRAPPING_DIR, "resultats_enrichis")
 RESULTATS_DIR_DIRIGEANTS = os.path.join(SCRAPPING_DIR, "resultats_dirigeants")
 
+RESULTATS_DIR_CONSOLIDATED = os.path.join(SCRAPPING_DIR, "resultats_consolides")
+
 FICHIER_RAW = os.path.join(RESULTATS_DIR_RAW, "resultats_complets.csv")
 FICHIER_ENRICHI = os.path.join(RESULTATS_DIR_ENRICHED, "resultats_enrichis_complets.csv")
 FICHIER_DIRIGEANTS = os.path.join(RESULTATS_DIR_DIRIGEANTS, "resultats_dirigeants.csv")
 FICHIER_GMB = os.path.join(RESULTATS_DIR_DIRIGEANTS, "resultats_dirigeants_enrichis_gmb.csv")
+FICHIER_WHOIS = os.path.join(RESULTATS_DIR_DIRIGEANTS, "resultats_finaux_complets.csv")
+FICHIER_CONSOLIDE = os.path.join(RESULTATS_DIR_CONSOLIDATED, "base_prospects_finale.csv")
 
 # Ensure directories exist
-for d in [RESULTATS_DIR_RAW, RESULTATS_DIR_ENRICHED, RESULTATS_DIR_DIRIGEANTS]:
+for d in [RESULTATS_DIR_RAW, RESULTATS_DIR_ENRICHED, RESULTATS_DIR_DIRIGEANTS, RESULTATS_DIR_CONSOLIDATED]:
     os.makedirs(d, exist_ok=True)
 
 class ProcessRequest(BaseModel):
@@ -59,16 +63,19 @@ class ProcessRequest(BaseModel):
 
 def run_workflow(queries: List[str], max_fiches: int = 20):
     """
-    Exécute le workflow complet : Scraping -> Enrichissement -> Dirigeants -> Enrichissement GMB
+    Exécute le workflow complet : Scraping -> Web -> Dirigeants -> GMB -> Whois -> Consolidation
     """
     # 1. Sauvegarder les mots-clés
     df_queries = pd.DataFrame({"mot_cle": queries})
     df_queries.to_csv(MOTS_CLES_CSV, index=False)
     
     # 2. Nettoyer les anciens fichiers
-    for f in [FICHIER_RAW, FICHIER_ENRICHI, FICHIER_DIRIGEANTS, FICHIER_GMB]:
+    for f in [FICHIER_RAW, FICHIER_ENRICHI, FICHIER_DIRIGEANTS, FICHIER_GMB, FICHIER_WHOIS, FICHIER_CONSOLIDE]:
         if os.path.exists(f):
-            os.remove(f)
+            try:
+                os.remove(f)
+            except:
+                pass
     
     # 3. Lancer le Scraping (+ Enrichissement sites web)
     try:
@@ -98,6 +105,22 @@ def run_workflow(queries: List[str], max_fiches: int = 20):
     except Exception as e:
         print(f"⚠️ Alerte: L'enrichissement GMB a échoué. Erreur: {e}")
 
+    # 6. Lancer l'enrichissement Whois
+    try:
+        print("DEBUG: Enrichissement Whois...")
+        subprocess.run([sys.executable, os.path.join(SCRAPPING_DIR, "enrichisseur_whois.py")], 
+                       cwd=SCRAPPING_DIR, check=True)
+    except Exception as e:
+        print(f"⚠️ Alerte: L'enrichissement Whois a échoué. Erreur: {e}")
+
+    # 7. Lancer la consolidation finale
+    try:
+        print("DEBUG: Consolidation finale...")
+        subprocess.run([sys.executable, os.path.join(SCRAPPING_DIR, "consolidation_prospects.py")], 
+                       cwd=SCRAPPING_DIR, check=True)
+    except Exception as e:
+        print(f"⚠️ Alerte: La consolidation a échoué. Erreur: {e}")
+
 @app.get("/health")
 def health():
     return {"status": "ok", "timestamp": datetime.now().isoformat()}
@@ -107,15 +130,17 @@ def get_results():
     """
     Retourne les dernières données consolidées au format JSON.
     """
-    # Debug: Print exact paths being checked
-    print(f"DEBUG: Checking for files in {RESULTATS_DIR_DIRIGEANTS}")
-    print(f"DEBUG: FICHIER_GMB exists: {os.path.exists(FICHIER_GMB)}")
-    print(f"DEBUG: FICHIER_DIRIGEANTS exists: {os.path.exists(FICHIER_DIRIGEANTS)}")
-
-    final_file = FICHIER_GMB if os.path.exists(FICHIER_GMB) else FICHIER_DIRIGEANTS
+    final_file = FICHIER_CONSOLIDE
     
     if not os.path.exists(final_file):
-        print(f"DEBUG: No final file found at {final_file}")
+        # Fallback si pas de fichier consolidé, on essaie le fichier intermédiaire le plus avancé
+        for f in [FICHIER_WHOIS, FICHIER_GMB, FICHIER_DIRIGEANTS]:
+             if os.path.exists(f):
+                 final_file = f
+                 break
+    
+    if not os.path.exists(final_file):
+        print(f"DEBUG: No final file found.")
         return []
     
     try:
@@ -136,16 +161,14 @@ async def process_single(request: ProcessRequest):
     try:
         run_workflow([query], request.max_fiches)
         
-        final_file = FICHIER_GMB if os.path.exists(FICHIER_GMB) else FICHIER_DIRIGEANTS
-        
-        if os.path.exists(final_file):
+        if os.path.exists(FICHIER_CONSOLIDE):
             return FileResponse(
-                path=final_file, 
+                path=FICHIER_CONSOLIDE, 
                 filename=f"prospects_{request.zipcode}.csv",
                 media_type="text/csv"
             )
         else:
-            raise HTTPException(status_code=500, detail="Aucun fichier de résultat n'a été généré.")
+            raise HTTPException(status_code=500, detail="Aucun fichier de résultat consolidé n'a été généré.")
             
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -176,7 +199,10 @@ async def process_batch(
         
         run_workflow(queries, max_fiches)
         
-        final_file = FICHIER_GMB if os.path.exists(FICHIER_GMB) else FICHIER_DIRIGEANTS
+        final_file = FICHIER_CONSOLIDE
+        if not os.path.exists(final_file):
+             # Fallback
+             final_file = FICHIER_GMB if os.path.exists(FICHIER_GMB) else FICHIER_DIRIGEANTS
         
         if os.path.exists(final_file):
             return FileResponse(

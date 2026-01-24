@@ -27,6 +27,7 @@ ENV/
 resultats/
 resultats_enrichis/
 resultats_dirigeants/
+resultats_consolides/
 mots_cles.csv
 motsclesdejafait.csv
 test_scraping.csv
