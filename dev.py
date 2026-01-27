@@ -9,6 +9,7 @@ from urllib.parse import quote
 import yaml
 from yaml.loader import SafeLoader
 import streamlit_authenticator as stauth
+import re
 
 # --- CONFIGURATION ---
 st.set_page_config(
@@ -304,14 +305,31 @@ with tab_prospect:
     
     # 1. Filter by Origin (Group)
     if 'origine_contact' in df.columns:
-        origins = sorted(df['origine_contact'].dropna().astype(str).unique().tolist())
+        def normalize_origin(s):
+            # Supprime le code postal (5 chiffres) et tout ce qui suit
+            return re.sub(r'\s*\d{5}.*', '', str(s)).strip()
+
+        # Récupération des origines brutes
+        raw_origins = df['origine_contact'].dropna().unique().tolist()
+        
+        # Création du mapping Groupe -> Liste de valeurs brutes
+        origin_groups = {}
+        for r in raw_origins:
+            g = normalize_origin(r)
+            if g not in origin_groups:
+                origin_groups[g] = []
+            origin_groups[g].append(r)
+            
+        groups = sorted(origin_groups.keys())
+        
         # Restriction rôle usr : pas de llbb
         if st.session_state['role'] != 'admin':
-            origins = [o for o in origins if o != 'llbb']
+            groups = [g for g in groups if g.lower() != 'llbb']
             
-        selected_origin = st.selectbox("🎯 Filtrer par Source (Groupe)", ["Tous"] + origins)
+        selected_origin = st.selectbox("🎯 Filtrer par Source (Groupe)", ["Tous"] + groups)
     else:
         selected_origin = "Tous"
+        origin_groups = {}
         st.warning("Colonne 'origine_contact' introuvable.")
 
     st.markdown("### 👤 Nouvelle Cible")
@@ -325,7 +343,8 @@ with tab_prospect:
     
     # Apply Origin Filter
     if selected_origin != "Tous":
-        prospects = prospects[prospects['origine_contact'] == selected_origin]
+        allowed_raw_values = origin_groups.get(selected_origin, [selected_origin])
+        prospects = prospects[prospects['origine_contact'].isin(allowed_raw_values)]
     
     if prospects.empty:
         st.success(f"🎉 Incroyable ! Vous avez traité tous les prospects de la base (Filtre: {selected_origin}) !")

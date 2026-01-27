@@ -7,6 +7,7 @@ import plotly.express as px
 import streamlit_authenticator as stauth
 import yaml
 from yaml.loader import SafeLoader
+import re
 
 app_title = 'CRM Plouf 💧'
 st.set_page_config(page_title=app_title, initial_sidebar_state='collapsed', page_icon="📞")
@@ -142,14 +143,29 @@ try:
         with tab1:
             st.subheader("🎯 Filtrer les contacts")
         
-            origines_disponibles = crm_df['origine_contact'].dropna().unique().tolist()
-            origine_selectionnee = st.selectbox("Origine du contact :", options=origines_disponibles)
+            def normalize_origin(s):
+                return re.sub(r'\s*\d{5}.*', '', str(s)).strip()
+
+            # Récupération des origines brutes
+            raw_origins = crm_df['origine_contact'].dropna().unique().tolist()
+            
+            # Création du mapping Groupe -> Liste de valeurs brutes
+            origin_groups = {}
+            for r in raw_origins:
+                g = normalize_origin(r)
+                if g not in origin_groups:
+                    origin_groups[g] = []
+                origin_groups[g].append(r)
+            
+            groups = sorted(origin_groups.keys())
+            origine_selectionnee = st.selectbox("Origine du contact :", options=groups)
         
             # Filtrer les index des fiches valides dans crm_df (pas df)
+            allowed_raw_values = origin_groups.get(origine_selectionnee, [origine_selectionnee])
             matching_indexes = crm_df[
                 (crm_df['Contacté'].isna()) &
                 (crm_df['Commercial'].isna()) &
-                (crm_df['origine_contact'] == origine_selectionnee)
+                (crm_df['origine_contact'].isin(allowed_raw_values))
             ].index.tolist()
         
             # Si nouvelle origine sélectionnée → mélanger les index
