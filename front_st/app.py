@@ -11,121 +11,155 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# --- C U S T O M   C S S   (Premium Aesthetic) ---
+# --- C U S T O M   C S S   (Premium React-like Aesthetic) ---
 st.markdown("""
     <style>
         /* Import Google Fonts */
-        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700&display=swap');
+
+        /* Global Variables */
+        :root {
+            --primary-red: #FF4B4B;
+            --primary-red-hover: #EE3F3F;
+            --bg-dark: #0A0F1C;
+            --card-bg: #161C2C;
+            --sidebar-bg: #111827;
+            --border-color: #2D3748;
+            --text-main: #F7FAFC;
+            --text-muted: #A0AEC0;
+        }
 
         /* General Styles */
         html, body, [class*="css"] {
-            font-family: 'Outfit', sans-serif;
-            color: #E0E0E0;
+            font-family: 'Inter', sans-serif;
+            color: var(--text-main);
         }
         
-        /* Background and Main Area */
         .stApp {
-            background-color: #0F172A; /* Slate 900 */
+            background-color: var(--bg-dark);
         }
 
-        /* Titles and Headers */
+        /* Typography */
         h1, h2, h3 {
-            color: #F8FAFC;
+            font-family: 'Outfit', sans-serif;
+            color: var(--text-main);
             font-weight: 700;
         }
         h1 {
-            font-size: 3rem;
-            background: linear-gradient(135deg, #3B82F6 0%, #8B5CF6 100%);
+            font-size: 3.5rem !important;
+            background: linear-gradient(135deg, #FF4B4B 0%, #FF8F8F 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            padding-bottom: 0.5rem;
+            letter-spacing: -0.02em;
+            margin-bottom: 1rem !important;
         }
 
-        /* Sidebar */
+        /* Sidebar Customization */
         section[data-testid="stSidebar"] {
-            background-color: #1E293B; /* Slate 800 */
-            border-right: 1px solid #334155;
+            background-color: var(--sidebar-bg);
+            border-right: 1px solid var(--border-color);
         }
-        section[data-testid="stSidebar"] h1, section[data-testid="stSidebar"] h2, section[data-testid="stSidebar"] h3 {
-            color: #94A3B8;
-        }
-
-        /* Inputs and Widgets */
-        .stTextInput > div > div > input {
-            background-color: #334155;
-            color: white;
-            border: 1px solid #475569;
-            border-radius: 8px;
-        }
-        .stTextInput > div > div > input:focus {
-            border-color: #60A5FA;
-            box-shadow: 0 0 0 1px #60A5FA;
-        }
-        .stSelectbox > div > div > div {
-            background-color: #334155;
-            color: white;
-            border: 1px solid #475569;
-            border-radius: 8px;
+        section[data-testid="stSidebar"] div.stVerticalBlock {
+            padding-top: 2rem;
         }
 
-        /* Tables / Dataframes */
+        /* Card and Container Styling */
+        div.stMetric {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 1.5rem !important;
+            border-radius: 16px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+        div.stMetric:hover {
+            transform: translateY(-4px);
+            border-color: var(--primary-red);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Inputs and Selectboxes */
+        .stTextInput input, .stSelectbox select, .stMultiSelect {
+            background-color: #1F2937 !important;
+            color: white !important;
+            border: 1px solid var(--border-color) !important;
+            border-radius: 12px !important;
+            padding: 0.5rem 1rem !important;
+        }
+        .stTextInput input:focus {
+            border-color: var(--primary-red) !important;
+            box-shadow: 0 0 0 2px rgba(255, 75, 75, 0.2) !important;
+        }
+
+        /* Buttons (The Red Focus) */
+        .stButton button {
+            background: linear-gradient(135deg, #FF4B4B 0%, #D32F2F 100%) !important;
+            color: white !important;
+            border: none !important;
+            border-radius: 12px !important;
+            font-weight: 600 !important;
+            padding: 0.75rem 1.5rem !important;
+            width: 100% !important;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+            text-transform: none !important;
+            font-family: 'Outfit', sans-serif !important;
+        }
+        .stButton button:hover {
+            background: linear-gradient(135deg, #FF5E5E 0%, #E53935 100%) !important;
+            transform: translateY(-2px) !important;
+            box-shadow: 0 10px 20px rgba(255, 75, 75, 0.3) !important;
+            color: white !important;
+        }
+        .stButton button:active {
+            transform: translateY(0px) !important;
+        }
+
+        /* Dataframe / Table Styling */
         [data-testid="stDataFrame"] {
-            background-color: #1E293B;
-            border-radius: 12px;
-            padding: 10px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-        }
-        
-        /* Metric Cards (if used) */
-        div[data-testid="metric-container"] {
-            background-color: #1E293B;
-            border: 1px solid #334155;
-            padding: 1rem;
-            border-radius: 10px;
-            transition: transform 0.2s;
-        }
-        div[data-testid="metric-container"]:hover {
-            transform: translateY(-2px);
-            border-color: #60A5FA;
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            overflow: hidden;
+            background-color: var(--card-bg);
         }
 
         /* Custom Scrollbar */
         ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
+            width: 6px;
+            height: 6px;
         }
         ::-webkit-scrollbar-track {
-            background: #0F172A; 
+            background: var(--bg-dark);
         }
         ::-webkit-scrollbar-thumb {
-            background: #475569; 
-            border-radius: 4px;
+            background: #374151;
+            border-radius: 10px;
         }
         ::-webkit-scrollbar-thumb:hover {
-            background: #64748B; 
+            background: #4B5563;
         }
 
-        /* Buttons */
-        .stButton button {
-            background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-weight: 600;
-            padding: 0.5rem 1rem;
-            transition: all 0.3s ease;
-        }
-        .stButton button:hover {
-            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
-            transform: translateY(-1px);
-        }
-        
-        /* Expanders */
+        /* Expander Styling */
         .streamlit-expanderHeader {
-            background-color: #1E293B;
-            border-radius: 8px;
-            color: #E2E8F0;
+            background-color: var(--card-bg) !important;
+            border: 1px solid var(--border-color) !important;
+            border-radius: 12px !important;
+            color: var(--text-main) !important;
         }
+
+        /* Status Messages */
+        .stAlert {
+            border-radius: 12px !important;
+            border: none !important;
+            background-color: rgba(31, 41, 55, 0.8) !important;
+            backdrop-filter: blur(10px);
+        }
+
+        /* Hide Streamlit components */
+        #MainMenu {visibility: hidden;}
+        footer {visibility: hidden;}
+        header {visibility: hidden;}
+
     </style>
 """, unsafe_allow_html=True)
 
