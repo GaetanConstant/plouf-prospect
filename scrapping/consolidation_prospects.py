@@ -105,8 +105,9 @@ def main():
 
             # 2. Priorisation Email
             # Email du site > Email Whois
-            email = row.get('Email trouvé', '').strip()
-            email_whois = row.get('Whois_Emails', '').strip()
+            email_site = row.get('Email trouvé', '').strip()
+            email = email_site
+            email_whois = row.get('Mail Whois', '').strip()
             
             if not email and email_whois:
                 # Whois peut contenir une liste, on prend le premier qui ne soit pas "abuse" ou "tech" si possible
@@ -128,6 +129,8 @@ def main():
                 "Activité": row.get('Mot-clé', ''), # Ou Code NAF si dispo
                 "Dirigeant": dirigeant,
                 "Email": email,
+                "Email Site": email_site,
+                "Mail Whois": email_whois,
                 "Téléphone": telephone,
                 "Téléphone Secondaire": telephone_secondaire,
                 "Site Web": row.get('Site web', ''),

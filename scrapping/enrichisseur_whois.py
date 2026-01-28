@@ -177,7 +177,7 @@ def main():
         reader = csv.DictReader(f)
         fieldnames = reader.fieldnames
         # Ajouter les nouvelles colonnes si elles n'existent pas
-        new_columns = ['Whois_Domain', 'Whois_Creation_Date', 'Whois_Expiration_Date', 'Whois_Registrar', 'Whois_Emails', 'Whois_Name', 'Whois_Org', 'Whois_Address', 'Whois_City', 'Whois_Zipcode', 'Whois_Country', 'Whois_Updated_Date', 'Whois_Phone']
+        new_columns = ['Whois_Domain', 'Whois_Creation_Date', 'Whois_Expiration_Date', 'Whois_Registrar', 'Mail Whois', 'Whois_Name', 'Whois_Org', 'Whois_Address', 'Whois_City', 'Whois_Zipcode', 'Whois_Country', 'Whois_Updated_Date', 'Whois_Phone']
         for col in new_columns:
             if col not in fieldnames:
                 fieldnames.append(col)
@@ -213,7 +213,7 @@ def main():
                  row['Whois_Expiration_Date'] = rdap_data['expiration_date']
                  row['Whois_Updated_Date'] = rdap_data['updated_date']
                  row['Whois_Registrar'] = rdap_data['registrar']
-                 row['Whois_Emails'] = format_list(rdap_data['emails'])
+                 row['Mail Whois'] = format_list(rdap_data['emails'])
                  row['Whois_Phone'] = format_list(rdap_data['phones'])
                  row['Whois_Address'] = format_list(rdap_data['address'])
                  row['Whois_City'] = format_list(rdap_data['city'])
@@ -230,7 +230,7 @@ def main():
                     row['Whois_Creation_Date'] = format_date(w_info.creation_date)
                     row['Whois_Expiration_Date'] = format_date(w_info.expiration_date)
                     row['Whois_Registrar'] = w_info.registrar
-                    row['Whois_Emails'] = format_list(w_info.emails)
+                    row['Mail Whois'] = format_list(w_info.emails)
                     row['Whois_Name'] = format_list(w_info.name)
                     row['Whois_Org'] = format_list(w_info.org)
                     row['Whois_Address'] = format_list(w_info.address)
